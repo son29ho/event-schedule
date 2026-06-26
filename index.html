@@ -337,19 +337,32 @@ select { background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.o
 .eventCardActions button { flex: 1; height: 38px; font-size: 13px; }
 
 /* ===== 参加者リスト ===== */
-.attendList { }
+.attendList {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(130px, 1fr));
+  gap: 10px;
+  padding: 4px 0;
+}
 .attendItem {
-  display: flex; align-items: center; gap: 12px;
-  padding: 12px 16px; border-bottom: 1px solid var(--border);
-  background: var(--surface);
+  display: flex; flex-direction: column; align-items: center;
+  gap: 8px; padding: 14px 10px;
+  background: var(--surface); border-radius: var(--radius);
+  border: 1.5px solid var(--border);
+  text-align: center;
 }
-.attendItem:last-child { border-bottom: none; }
-.attendNum { font-size: 12px; color: var(--text-muted); width: 20px; flex-shrink: 0; text-align: center; }
-.attendName { flex: 1; font-size: 15px; font-weight: 500; }
-.attendStatus select {
-  height: 36px; font-size: 13px; padding: 0 28px 0 10px;
-  border-radius: 20px; border-width: 1.5px;
+.attendNum { font-size: 11px; color: var(--text-muted); }
+.attendName { font-size: 14px; font-weight: 600; width: 100%; word-break: break-all; line-height: 1.4; }
+.attendBtns { display: flex; gap: 6px; width: 100%; }
+.attendBtn {
+  flex: 1; height: 34px; border-radius: 20px;
+  border: 1.5px solid var(--border); background: var(--surface);
+  font-size: 12px; font-weight: 600; cursor: pointer;
+  color: var(--text-muted); transition: all .15s;
 }
+.attendBtn:active { transform: scale(.95); }
+.attendBtn.active-attend  { background: var(--success-light); border-color: var(--success); color: var(--success); }
+.attendBtn.active-absent  { background: var(--danger-light);  border-color: var(--danger);  color: var(--danger); }
+.attendBtn.active-pending { background: var(--warning-light); border-color: var(--warning); color: #856404; }
 
 /* ===== メンバーカード ===== */
 .memberCard {
@@ -1215,22 +1228,24 @@ async function loadAttendance(eventId) {
     return;
   }
 
-  const OPTS = ['参加','不参加','キャンセル待ち'];
+  const STATUSES = [
+    { key: '参加',         cls: 'active-attend',  label: '⭕ 参加' },
+    { key: '不参加',       cls: 'active-absent',  label: '❌ 不参加' },
+  ];
   listEl.innerHTML = list.map((a, i) => {
     const isGuest = String(a['メンバーID']).startsWith('GUEST_');
     const canChange = state.member.permission >= 1 || String(a['メンバーID']) === String(state.member.id);
-    const statusEl = canChange
-      ? `<select class="attendStatus" onchange="changeAttStatus('${a['イベントID']}','${a['メンバーID']}',this.value)" style="height:36px;font-size:13px;padding:0 28px 0 10px;border-radius:20px">
-          ${OPTS.map(s => `<option${s===a['参加状態']?' selected':''}>${s}</option>`).join('')}
-        </select>`
-      : `<span class="tag tag-${a['参加状態']==='参加'?'attend':a['参加状態']==='不参加'?'absent':'pending'}">${a['参加状態']}</span>`;
+    const evId  = a['イベントID'];
+    const memId = a['メンバーID'];
+    const cur   = a['参加状態'];
+    const btns = canChange
+      ? STATUSES.map(s => `<button class="attendBtn${cur===s.key?' '+s.cls:''}"
+          onclick="changeAttStatus('${evId}','${memId}','${s.key}')">${s.label}</button>`).join('')
+      : `<span class="tag tag-${cur==='参加'?'attend':cur==='不参加'?'absent':'pending'}" style="width:100%;justify-content:center">${cur}</span>`;
     return `<div class="attendItem">
       <div class="attendNum">${i+1}</div>
-      <div class="attendName">
-        ${a['氏名']}
-        ${isGuest ? '<span class="tag tag-guest" style="margin-left:6px;font-size:10px">新規</span>' : ''}
-      </div>
-      ${statusEl}
+      <div class="attendName">${a['氏名']}${isGuest ? '<br><span class="tag tag-guest" style="font-size:10px;margin-top:2px">新規</span>' : ''}</div>
+      <div class="attendBtns">${btns}</div>
     </div>`;
   }).join('');
 }
