@@ -364,6 +364,29 @@ select { background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.o
 .attendBtn.active-absent  { background: var(--danger-light);  border-color: var(--danger);  color: var(--danger); }
 .attendBtn.active-pending { background: var(--warning-light); border-color: var(--warning); color: #856404; }
 
+/* ===== 参加者インライン表示 ===== */
+.attInline {
+  display: flex; flex-wrap: wrap; gap: 6px;
+  padding: 10px 14px 12px;
+  border-top: 1px solid var(--border);
+}
+.attChip {
+  display: inline-flex; align-items: center; gap: 4px;
+  padding: 4px 10px; border-radius: 20px;
+  font-size: 12px; font-weight: 600; line-height: 1;
+}
+.attChip-attend  { background: var(--success-light); color: var(--success); }
+.attChip-absent  { background: var(--danger-light);  color: var(--danger); }
+.attChip-pending { background: var(--warning-light); color: #856404; }
+.attChip-guest   { background: #f3e8fd; color: #7b1fa2; }
+.attChipDot { width: 6px; height: 6px; border-radius: 50%; flex-shrink: 0; }
+.attChipDot-attend  { background: var(--success); }
+.attChipDot-absent  { background: var(--danger); }
+.attChipDot-pending { background: var(--warning); }
+.attChipDot-guest   { background: #7b1fa2; }
+.attInlineEmpty { font-size: 12px; color: var(--text-muted); padding: 8px 14px 12px; border-top: 1px solid var(--border); }
+.attInlineLoading { font-size: 12px; color: var(--text-muted); padding: 8px 14px 12px; border-top: 1px solid var(--border); }
+
 /* ===== メンバーカード ===== */
 .memberCard {
   display: flex; align-items: center; gap: 12px;
@@ -1007,6 +1030,7 @@ async function renderEventList() {
               ${ev['申込締切'] ? `<span>⏰ ${String(ev['申込締切']).substring(0,16)}</span>` : ''}
             </div>
           </div>
+          <div class="attInlineLoading" id="att-inline-${ev['イベントID']}">読み込み中…</div>
           ${(canEdit) ? `<div class="eventCardActions">
             <button class="btn btn-outline btn-sm" onclick="openAttSheet('${ev['イベントID']}')">👥 参加者</button>
             ${editBtns}
@@ -1017,9 +1041,45 @@ async function renderEventList() {
 
   document.getElementById('main').innerHTML = html;
   if (canEdit) addFab('openEventSheet()');
+
+  // 参加者を非同期で順次ロード
+  for (const ev of state.events) {
+    loadAttInline(ev['イベントID']);
+  }
 }
 
 function changeMonthEv(d) { state.currentMonth = new Date(state.currentMonth.getFullYear(), state.currentMonth.getMonth()+d, 1); renderEventList(); }
+
+// イベントカード内の参加者チップを非同期ロード
+async function loadAttInline(eventId) {
+  const el = document.getElementById('att-inline-' + eventId);
+  if (!el) return;
+  const res = await apiGet({ action: 'getAttendance', eventId });
+  const list = res.success ? res.data : [];
+
+  if (!list.length) {
+    el.className = 'attInlineEmpty';
+    el.textContent = '参加者なし';
+    return;
+  }
+
+  const attend  = list.filter(a => a['参加状態'] === '参加');
+  const absent  = list.filter(a => a['参加状態'] === '不参加');
+
+
+  const chip = (person, cls) => {
+    const isGuest = String(person['メンバーID']).startsWith('GUEST_');
+    const chipCls = isGuest ? 'guest' : cls;
+    return `<span class="attChip attChip-${chipCls}"><span class="attChipDot attChipDot-${chipCls}"></span>${person['氏名']}</span>`;
+  };
+
+  let chips = '';
+  attend.forEach(p  => { chips += chip(p, 'attend'); });
+  absent.forEach(p  => { chips += chip(p, 'absent'); });
+
+  el.className = 'attInline';
+  el.innerHTML = chips;
+}
 
 // ============================================================
 // マイスケジュール
@@ -1045,10 +1105,16 @@ async function renderMySchedule() {
             <div style="font-size:15px;font-weight:600;margin-bottom:4px">${ev['講師']||''}</div>
             <div class="eventCardMeta">${venue ? `<span>${venue}</span>` : ''}</div>
           </div>
+          <div class="attInlineLoading" id="att-inline-${ev['イベントID']}">読み込み中…</div>
         </div>`;
     });
   }
   document.getElementById('main').innerHTML = html;
+
+  // 参加者を非同期でロード
+  for (const ev of events) {
+    loadAttInline(ev['イベントID']);
+  }
 }
 
 // ============================================================
@@ -1229,8 +1295,8 @@ async function loadAttendance(eventId) {
   }
 
   const STATUSES = [
-    { key: '参加',         cls: 'active-attend',  label: '⭕ 参加' },
-    { key: '不参加',       cls: 'active-absent',  label: '❌ 不参加' },
+    { key: '参加',   cls: 'active-attend', label: '⭕ 参加' },
+    { key: '不参加', cls: 'active-absent', label: '❌ 不参加' },
   ];
   listEl.innerHTML = list.map((a, i) => {
     const isGuest = String(a['メンバーID']).startsWith('GUEST_');
@@ -1241,7 +1307,7 @@ async function loadAttendance(eventId) {
     const btns = canChange
       ? STATUSES.map(s => `<button class="attendBtn${cur===s.key?' '+s.cls:''}"
           onclick="changeAttStatus('${evId}','${memId}','${s.key}')">${s.label}</button>`).join('')
-      : `<span class="tag tag-${cur==='参加'?'attend':cur==='不参加'?'absent':'pending'}" style="width:100%;justify-content:center">${cur}</span>`;
+      : `<span class="tag tag-${cur==='参加'?'attend':'absent'}" style="width:100%;justify-content:center">${cur}</span>`;
     return `<div class="attendItem">
       <div class="attendNum">${i+1}</div>
       <div class="attendName">${a['氏名']}${isGuest ? '<br><span class="tag tag-guest" style="font-size:10px;margin-top:2px">新規</span>' : ''}</div>
