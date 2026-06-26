@@ -1,0 +1,985 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>セミナー管理システム</title>
+<style>
+  :root {
+    --primary: #1a73e8;
+    --primary-dark: #1557b0;
+    --danger: #d93025;
+    --success: #188038;
+    --warning: #f29900;
+    --bg: #f8f9fa;
+    --surface: #ffffff;
+    --border: #dadce0;
+    --text: #202124;
+    --text-muted: #5f6368;
+    --radius: 8px;
+    --shadow: 0 1px 3px rgba(0,0,0,.12), 0 1px 2px rgba(0,0,0,.08);
+  }
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body { font-family: 'Hiragino Sans', 'Noto Sans JP', sans-serif; background: var(--bg); color: var(--text); font-size: 14px; }
+
+  /* ===== HEADER ===== */
+  header { background: var(--primary); color: #fff; padding: 0 20px; height: 56px; display: flex; align-items: center; justify-content: space-between; box-shadow: 0 2px 4px rgba(0,0,0,.2); position: sticky; top: 0; z-index: 100; }
+  header h1 { font-size: 18px; font-weight: 600; }
+  #userInfo { display: flex; align-items: center; gap: 12px; font-size: 13px; }
+  #userName { opacity: .9; }
+  .badge { background: rgba(255,255,255,.2); border-radius: 12px; padding: 2px 10px; font-size: 11px; }
+
+  /* ===== LOGIN ===== */
+  #loginScreen { display: flex; align-items: center; justify-content: center; min-height: 100vh; }
+  .loginCard { background: var(--surface); border-radius: 12px; padding: 40px; width: 360px; box-shadow: 0 4px 12px rgba(0,0,0,.15); }
+  .loginCard h2 { font-size: 20px; margin-bottom: 8px; color: var(--primary); }
+  .loginCard p { color: var(--text-muted); margin-bottom: 28px; font-size: 13px; }
+
+  /* ===== LAYOUT ===== */
+  #app { display: none; }
+  .layout { display: flex; min-height: calc(100vh - 56px); }
+  nav { width: 220px; background: var(--surface); border-right: 1px solid var(--border); padding: 16px 0; flex-shrink: 0; }
+  .navItem { display: flex; align-items: center; gap: 10px; padding: 10px 20px; cursor: pointer; color: var(--text-muted); transition: all .15s; font-size: 14px; border-left: 3px solid transparent; }
+  .navItem:hover { background: #e8f0fe; color: var(--primary); }
+  .navItem.active { background: #e8f0fe; color: var(--primary); border-left-color: var(--primary); font-weight: 600; }
+  .navItem .icon { font-size: 18px; width: 20px; text-align: center; }
+  .navDivider { height: 1px; background: var(--border); margin: 8px 16px; }
+  main { flex: 1; padding: 24px; overflow-y: auto; }
+
+  /* ===== CARDS ===== */
+  .card { background: var(--surface); border-radius: var(--radius); box-shadow: var(--shadow); margin-bottom: 20px; }
+  .cardHeader { padding: 16px 20px; border-bottom: 1px solid var(--border); display: flex; align-items: center; justify-content: space-between; }
+  .cardHeader h2 { font-size: 16px; font-weight: 600; }
+  .cardBody { padding: 20px; }
+
+  /* ===== FORMS ===== */
+  .formGrid { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; }
+  .formGrid.cols3 { grid-template-columns: 1fr 1fr 1fr; }
+  .formGrid.cols1 { grid-template-columns: 1fr; }
+  .formGroup { display: flex; flex-direction: column; gap: 6px; }
+  .formGroup.span2 { grid-column: span 2; }
+  label { font-size: 12px; font-weight: 600; color: var(--text-muted); }
+  input, select, textarea { border: 1px solid var(--border); border-radius: 6px; padding: 8px 12px; font-size: 14px; font-family: inherit; width: 100%; transition: border .15s; background: var(--surface); color: var(--text); }
+  input:focus, select:focus, textarea:focus { outline: none; border-color: var(--primary); box-shadow: 0 0 0 2px rgba(26,115,232,.15); }
+  textarea { resize: vertical; min-height: 80px; }
+
+  /* ===== BUTTONS ===== */
+  .btn { display: inline-flex; align-items: center; gap: 6px; padding: 8px 16px; border-radius: 6px; border: none; cursor: pointer; font-size: 14px; font-family: inherit; font-weight: 500; transition: all .15s; }
+  .btn-primary { background: var(--primary); color: #fff; }
+  .btn-primary:hover { background: var(--primary-dark); }
+  .btn-danger { background: var(--danger); color: #fff; }
+  .btn-danger:hover { background: #b31412; }
+  .btn-outline { background: transparent; border: 1px solid var(--border); color: var(--text); }
+  .btn-outline:hover { background: var(--bg); }
+  .btn-sm { padding: 4px 10px; font-size: 12px; }
+  .btn-icon { padding: 6px; border-radius: 50%; background: transparent; border: none; cursor: pointer; color: var(--text-muted); font-size: 16px; }
+  .btn-icon:hover { background: var(--bg); color: var(--text); }
+
+  /* ===== TABLE ===== */
+  .tableWrap { overflow-x: auto; }
+  table { width: 100%; border-collapse: collapse; }
+  th { background: var(--bg); padding: 10px 12px; text-align: left; font-size: 12px; font-weight: 600; color: var(--text-muted); border-bottom: 2px solid var(--border); white-space: nowrap; }
+  td { padding: 10px 12px; border-bottom: 1px solid var(--border); vertical-align: middle; }
+  tr:hover td { background: #f8f9ff; }
+  tr:last-child td { border-bottom: none; }
+
+  /* ===== TAGS ===== */
+  .tag { display: inline-flex; align-items: center; padding: 2px 8px; border-radius: 12px; font-size: 11px; font-weight: 600; }
+  .tag-BE { background: #e8f0fe; color: #1a73e8; }
+  .tag-BT { background: #e6f4ea; color: #188038; }
+  .tag-BS { background: #fce8b2; color: #8a5a00; }
+  .tag-PBS { background: #fce8e6; color: #c5221f; }
+  .tag-attend { background: #e6f4ea; color: #188038; }
+  .tag-absent { background: #fce8e6; color: #c5221f; }
+  .tag-pending { background: #fef3cd; color: #856404; }
+  .tag-guest { background: #f3e8fd; color: #7b1fa2; }
+  .tag-perm0 { background: #f1f3f4; color: #5f6368; }
+  .tag-perm1 { background: #e8f0fe; color: #1a73e8; }
+  .tag-perm2 { background: #e6f4ea; color: #188038; }
+  .tag-perm3 { background: #fce8e6; color: #c5221f; }
+
+  /* ===== CALENDAR ===== */
+  .calNav { display: flex; align-items: center; gap: 12px; margin-bottom: 16px; }
+  .calTitle { font-size: 18px; font-weight: 600; min-width: 120px; text-align: center; }
+  .calGrid { display: grid; grid-template-columns: repeat(7, 1fr); gap: 1px; background: var(--border); border: 1px solid var(--border); border-radius: var(--radius); overflow: hidden; }
+  .calDayHeader { background: var(--bg); padding: 8px; text-align: center; font-size: 12px; font-weight: 600; color: var(--text-muted); }
+  .calDayHeader.sun { color: var(--danger); }
+  .calDayHeader.sat { color: var(--primary); }
+  .calCell { background: var(--surface); min-height: 100px; padding: 6px; }
+  .calCell.other-month { background: #fafafa; }
+  .calDateNum { font-size: 12px; font-weight: 500; margin-bottom: 4px; }
+  .calCell.today .calDateNum { background: var(--primary); color: #fff; border-radius: 50%; width: 22px; height: 22px; display: flex; align-items: center; justify-content: center; }
+  .calEvent { font-size: 10px; border-radius: 4px; padding: 2px 4px; margin-bottom: 2px; cursor: pointer; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .calEvent-BE { background: #e8f0fe; color: #1a73e8; }
+  .calEvent-BT { background: #e6f4ea; color: #188038; }
+  .calEvent-BS { background: #fce8b2; color: #8a5a00; }
+  .calEvent-PBS { background: #fce8e6; color: #c5221f; }
+
+  /* ===== MODAL ===== */
+  .overlay { display: none; position: fixed; inset: 0; background: rgba(0,0,0,.4); z-index: 200; align-items: center; justify-content: center; }
+  .overlay.open { display: flex; }
+  .modal { background: var(--surface); border-radius: 12px; width: 640px; max-width: 95vw; max-height: 90vh; overflow-y: auto; box-shadow: 0 8px 30px rgba(0,0,0,.2); }
+  .modal.wide { width: 860px; }
+  .modalHeader { padding: 20px 24px 16px; border-bottom: 1px solid var(--border); display: flex; align-items: center; justify-content: space-between; }
+  .modalHeader h3 { font-size: 16px; font-weight: 600; }
+  .modalBody { padding: 24px; }
+  .modalFooter { padding: 16px 24px; border-top: 1px solid var(--border); display: flex; justify-content: flex-end; gap: 10px; }
+
+  /* ===== ALERTS ===== */
+  .alert { padding: 12px 16px; border-radius: 6px; margin-bottom: 16px; font-size: 13px; }
+  .alert-error { background: #fce8e6; color: var(--danger); }
+  .alert-success { background: #e6f4ea; color: var(--success); }
+  .alert-info { background: #e8f0fe; color: var(--primary); }
+
+  /* ===== STATS ===== */
+  .statsGrid { display: grid; grid-template-columns: repeat(4, 1fr); gap: 16px; margin-bottom: 20px; }
+  .statCard { background: var(--surface); border-radius: var(--radius); padding: 16px 20px; box-shadow: var(--shadow); }
+  .statNum { font-size: 28px; font-weight: 700; color: var(--primary); }
+  .statLabel { font-size: 12px; color: var(--text-muted); margin-top: 4px; }
+
+  /* ===== PERMISSION NOTES ===== */
+  .permNote { font-size: 11px; color: var(--text-muted); margin-top: 4px; }
+
+  /* ===== MISC ===== */
+  .flex { display: flex; }
+  .gap8 { gap: 8px; }
+  .gap12 { gap: 12px; }
+  .mt12 { margin-top: 12px; }
+  .mt20 { margin-top: 20px; }
+  .empty { text-align: center; padding: 40px; color: var(--text-muted); }
+  .loading { text-align: center; padding: 40px; color: var(--text-muted); }
+  .searchBox { display: flex; align-items: center; gap: 10px; margin-bottom: 16px; }
+  .searchBox input { max-width: 280px; }
+  .filterRow { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; margin-bottom: 12px; }
+  .attendanceList { max-height: 400px; overflow-y: auto; }
+  .attendRow { display: flex; align-items: center; justify-content: space-between; padding: 8px 12px; border-bottom: 1px solid var(--border); }
+  .attendRow:last-child { border-bottom: none; }
+  .hidden { display: none !important; }
+</style>
+</head>
+<body>
+
+<!-- ===== LOGIN ===== -->
+<div id="loginScreen">
+  <div class="loginCard">
+    <h2>📋 セミナー管理</h2>
+    <p>メンバーIDとパスワードでログインしてください</p>
+    <div id="loginError" class="alert alert-error" style="display:none"></div>
+    <div class="formGrid cols1">
+      <div class="formGroup">
+        <label>メンバーID</label>
+        <input id="loginId" type="text" placeholder="例：M_XXXX" autocomplete="username">
+      </div>
+      <div class="formGroup">
+        <label>パスワード</label>
+        <input id="loginPw" type="password" placeholder="パスワード" autocomplete="current-password">
+      </div>
+      <button class="btn btn-primary" onclick="doLogin()" style="width:100%;justify-content:center;margin-top:8px">ログイン</button>
+    </div>
+  </div>
+</div>
+
+<!-- ===== APP ===== -->
+<div id="app">
+  <header>
+    <h1>📋 セミナー管理システム</h1>
+    <div id="userInfo">
+      <span id="userName"></span>
+      <span id="userBadge" class="badge"></span>
+      <button class="btn btn-outline" style="color:#fff;border-color:rgba(255,255,255,.4);font-size:12px;padding:4px 12px" onclick="doLogout()">ログアウト</button>
+    </div>
+  </header>
+  <div class="layout">
+    <nav id="nav">
+      <div class="navItem active" data-page="calendar" onclick="showPage('calendar')"><span class="icon">📅</span>カレンダー</div>
+      <div class="navItem" data-page="events" onclick="showPage('events')"><span class="icon">📋</span>イベント一覧</div>
+      <div class="navItem" data-page="mySchedule" onclick="showPage('mySchedule')"><span class="icon">🙋</span>マイスケジュール</div>
+      <div class="navDivider"></div>
+      <div class="navItem admin-only" data-page="members" onclick="showPage('members')"><span class="icon">👥</span>メンバー管理</div>
+      <div class="navItem super-only" data-page="config" onclick="showPage('config')"><span class="icon">⚙️</span>システム設定</div>
+    </nav>
+    <main id="main"></main>
+  </div>
+</div>
+
+<!-- ===== MODALS ===== -->
+<!-- イベント編集モーダル -->
+<div class="overlay" id="eventModal">
+  <div class="modal wide">
+    <div class="modalHeader">
+      <h3 id="eventModalTitle">イベント追加</h3>
+      <button class="btn-icon" onclick="closeModal('eventModal')">✕</button>
+    </div>
+    <div class="modalBody">
+      <div class="formGrid">
+        <div class="formGroup">
+          <label>日付 *</label>
+          <input type="date" id="ev_date">
+        </div>
+        <div class="formGroup">
+          <label>種別 *</label>
+          <select id="ev_type">
+            <option value="BE">BE - ビジネスエクスプラネーション</option>
+            <option value="BT">BT - ビジネストレーニング</option>
+            <option value="BS">BS - ビジネスセミナー</option>
+            <option value="PBS">PBS - プライムビジネスセミナー</option>
+          </select>
+        </div>
+        <div class="formGroup">
+          <label>開始時刻 *</label>
+          <input type="time" id="ev_start">
+        </div>
+        <div class="formGroup">
+          <label>終了時刻 *</label>
+          <input type="time" id="ev_end">
+        </div>
+        <div class="formGroup">
+          <label>主催</label>
+          <select id="ev_organizer">
+            <option value="全厚済">全厚済主催</option>
+            <option value="ウィナーズ">ウィナーズ主催</option>
+          </select>
+        </div>
+        <div class="formGroup">
+          <label>講師 *</label>
+          <input type="text" id="ev_lecturer" placeholder="例：山田太郎">
+        </div>
+        <div class="formGroup span2">
+          <label>会場</label>
+          <input type="text" id="ev_venue" placeholder="例：大阪産業創造館">
+        </div>
+        <div class="formGroup span2">
+          <label>会場住所</label>
+          <input type="text" id="ev_address" placeholder="例：大阪市中央区本町1-4-5">
+        </div>
+        <div class="formGroup">
+          <label>受講料（円）</label>
+          <input type="number" id="ev_fee" placeholder="0">
+        </div>
+        <div class="formGroup">
+          <label>定員</label>
+          <input type="number" id="ev_capacity" placeholder="20">
+        </div>
+        <div class="formGroup">
+          <label>申込締切</label>
+          <input type="datetime-local" id="ev_deadline">
+        </div>
+        <div class="formGroup">
+          <label>オンライン</label>
+          <select id="ev_online">
+            <option value="否">対面</option>
+            <option value="是">オンライン（Zoom）</option>
+            <option value="両方">ハイブリッド</option>
+          </select>
+        </div>
+        <div class="formGroup">
+          <label>Zoom ID</label>
+          <input type="text" id="ev_zoomId" placeholder="000 000 0000">
+        </div>
+        <div class="formGroup">
+          <label>パスコード</label>
+          <input type="text" id="ev_zoomPc" placeholder="000000">
+        </div>
+        <div class="formGroup span2">
+          <label>備考</label>
+          <textarea id="ev_note" placeholder="特記事項・連絡事項など"></textarea>
+        </div>
+      </div>
+    </div>
+    <div class="modalFooter">
+      <button class="btn btn-outline" onclick="closeModal('eventModal')">キャンセル</button>
+      <button class="btn btn-primary" onclick="saveEvent()">💾 保存</button>
+    </div>
+  </div>
+</div>
+
+<!-- 参加者管理モーダル -->
+<div class="overlay" id="attendanceModal">
+  <div class="modal wide">
+    <div class="modalHeader">
+      <h3 id="attModalTitle">参加者管理</h3>
+      <button class="btn-icon" onclick="closeModal('attendanceModal')">✕</button>
+    </div>
+    <div class="modalBody">
+      <div id="attEventInfo" class="alert alert-info" style="margin-bottom:16px"></div>
+      <div class="flex gap8" style="margin-bottom:16px;flex-wrap:wrap">
+        <button class="btn btn-primary btn-sm" onclick="openGuestAdd()">＋ 新規ゲスト追加</button>
+        <button class="btn btn-outline btn-sm staff-only" onclick="openMemberAdd()">＋ メンバー追加</button>
+      </div>
+      <div id="guestAddRow" class="hidden" style="background:#f8f9fa;padding:12px;border-radius:6px;margin-bottom:12px">
+        <div class="flex gap8" style="align-items:center">
+          <input type="text" id="guestNameInput" placeholder="新規ゲスト氏名" style="max-width:200px">
+          <button class="btn btn-primary btn-sm" onclick="submitGuest()">追加</button>
+          <button class="btn btn-outline btn-sm" onclick="closeGuestAdd()">キャンセル</button>
+        </div>
+      </div>
+      <div id="memberSelectRow" class="hidden" style="background:#f8f9fa;padding:12px;border-radius:6px;margin-bottom:12px">
+        <div class="flex gap8" style="align-items:center">
+          <select id="memberSelectInput" style="max-width:240px"><option value="">メンバーを選択...</option></select>
+          <button class="btn btn-primary btn-sm" onclick="submitMemberAttend()">追加</button>
+          <button class="btn btn-outline btn-sm" onclick="closeMemberAdd()">キャンセル</button>
+        </div>
+      </div>
+      <div class="attendanceList" id="attendanceList"></div>
+    </div>
+    <div class="modalFooter">
+      <span id="attCount" style="color:var(--text-muted);font-size:13px;margin-right:auto"></span>
+      <button class="btn btn-outline" onclick="closeModal('attendanceModal')">閉じる</button>
+    </div>
+  </div>
+</div>
+
+<!-- メンバー編集モーダル -->
+<div class="overlay" id="memberModal">
+  <div class="modal">
+    <div class="modalHeader">
+      <h3 id="memberModalTitle">メンバー追加</h3>
+      <button class="btn-icon" onclick="closeModal('memberModal')">✕</button>
+    </div>
+    <div class="modalBody">
+      <div class="formGrid">
+        <div class="formGroup">
+          <label>氏名 *</label>
+          <input type="text" id="mem_name" placeholder="例：山田花子">
+        </div>
+        <div class="formGroup">
+          <label>ふりがな</label>
+          <input type="text" id="mem_kana" placeholder="やまだはなこ">
+        </div>
+        <div class="formGroup">
+          <label>グループ</label>
+          <input type="text" id="mem_group" placeholder="例：穴田グループ">
+        </div>
+        <div class="formGroup">
+          <label>権限レベル</label>
+          <select id="mem_perm">
+            <option value="0">0 - 一般メンバー（閲覧・参加申請）</option>
+            <option value="1">1 - スタッフ（参加者管理）</option>
+            <option value="2">2 - 管理者（イベント編集）</option>
+            <option value="3">3 - 最高管理者（全操作）</option>
+          </select>
+          <span class="permNote">※権限変更は最高管理者のみ可能</span>
+        </div>
+        <div class="formGroup">
+          <label>パスワード</label>
+          <input type="password" id="mem_pw" placeholder="未入力=メンバーIDが初期PW">
+        </div>
+        <div class="formGroup">
+          <label>状態</label>
+          <select id="mem_status">
+            <option value="有効">有効</option>
+            <option value="無効">無効（ログイン不可）</option>
+          </select>
+        </div>
+      </div>
+    </div>
+    <div class="modalFooter">
+      <button class="btn btn-outline" onclick="closeModal('memberModal')">キャンセル</button>
+      <button class="btn btn-primary" onclick="saveMember()">💾 保存</button>
+    </div>
+  </div>
+</div>
+
+<script>
+// ============================================================
+// 設定 - GAS WebApp URLをここに入力
+// ============================================================
+const GAS_URL = 'YOUR_GAS_WEBAPP_URL_HERE';
+
+// ============================================================
+// 状態管理
+// ============================================================
+let state = {
+  token: localStorage.getItem('smToken'),
+  member: JSON.parse(localStorage.getItem('smMember') || 'null'),
+  currentPage: 'calendar',
+  currentMonth: new Date(),
+  events: [],
+  members: [],
+  editingEventId: null,
+  editingMemberId: null,
+  currentAttendanceEventId: null
+};
+
+const PERM_LABELS = ['一般', 'スタッフ', '管理者', '最高管理者'];
+const TYPE_LABELS = {
+  BE: 'BE', BT: 'BT', BS: 'BS', PBS: 'PBS'
+};
+
+// ============================================================
+// 認証
+// ============================================================
+async function doLogin() {
+  const id = document.getElementById('loginId').value.trim();
+  const pw = document.getElementById('loginPw').value;
+  if (!id || !pw) return showLoginError('IDとパスワードを入力してください');
+
+  const res = await apiGet({ action: 'login', memberId: id, password: pw });
+  if (!res.success) return showLoginError(res.error);
+
+  state.token = res.token;
+  state.member = res.member;
+  localStorage.setItem('smToken', res.token);
+  localStorage.setItem('smMember', JSON.stringify(res.member));
+  initApp();
+}
+
+function doLogout() {
+  localStorage.removeItem('smToken');
+  localStorage.removeItem('smMember');
+  state.token = null;
+  state.member = null;
+  document.getElementById('loginScreen').style.display = 'flex';
+  document.getElementById('app').style.display = 'none';
+}
+
+function showLoginError(msg) {
+  const el = document.getElementById('loginError');
+  el.textContent = msg;
+  el.style.display = 'block';
+}
+
+// ============================================================
+// 初期化
+// ============================================================
+function initApp() {
+  if (!state.token || !state.member) {
+    document.getElementById('loginScreen').style.display = 'flex';
+    document.getElementById('app').style.display = 'none';
+    return;
+  }
+  document.getElementById('loginScreen').style.display = 'none';
+  document.getElementById('app').style.display = 'block';
+  document.getElementById('userName').textContent = state.member.name;
+  document.getElementById('userBadge').textContent = PERM_LABELS[state.member.permission] || '';
+
+  // 権限に応じてナビ表示
+  const perm = state.member.permission;
+  document.querySelectorAll('.admin-only').forEach(el => el.style.display = perm >= 2 ? '' : 'none');
+  document.querySelectorAll('.super-only').forEach(el => el.style.display = perm >= 3 ? '' : 'none');
+
+  showPage('calendar');
+}
+
+// ============================================================
+// ページ制御
+// ============================================================
+function showPage(page) {
+  state.currentPage = page;
+  document.querySelectorAll('.navItem').forEach(el => {
+    el.classList.toggle('active', el.dataset.page === page);
+  });
+  const main = document.getElementById('main');
+  main.innerHTML = '<div class="loading">読み込み中...</div>';
+  switch (page) {
+    case 'calendar':    renderCalendar(); break;
+    case 'events':      renderEventList(); break;
+    case 'mySchedule':  renderMySchedule(); break;
+    case 'members':     renderMembers(); break;
+    case 'config':      renderConfig(); break;
+  }
+}
+
+// ============================================================
+// カレンダー
+// ============================================================
+async function renderCalendar() {
+  const month = state.currentMonth;
+  const yearMonth = `${month.getFullYear()}-${String(month.getMonth()+1).padStart(2,'0')}`;
+  const res = await apiGet({ action: 'getEvents', month: yearMonth });
+  state.events = res.success ? res.data : [];
+
+  const main = document.getElementById('main');
+  const today = new Date();
+  const firstDay = new Date(month.getFullYear(), month.getMonth(), 1);
+  const lastDay = new Date(month.getFullYear(), month.getMonth()+1, 0);
+
+  // イベントをdateでグループ化
+  const evMap = {};
+  state.events.forEach(ev => {
+    const d = String(ev['日付']).substring(0, 10);
+    if (!evMap[d]) evMap[d] = [];
+    evMap[d].push(ev);
+  });
+
+  const addBtn = state.member.permission >= 2
+    ? `<button class="btn btn-primary" onclick="openEventModal()">＋ イベント追加</button>` : '';
+
+  let html = `
+    <div class="calNav">
+      <button class="btn btn-outline" onclick="changeMonth(-1)">◀</button>
+      <span class="calTitle">${month.getFullYear()}年 ${month.getMonth()+1}月</span>
+      <button class="btn btn-outline" onclick="changeMonth(1)">▶</button>
+      <button class="btn btn-outline btn-sm" onclick="goToToday()">今日</button>
+      <div style="margin-left:auto">${addBtn}</div>
+    </div>
+    <div class="calGrid">
+      <div class="calDayHeader sun">日</div>
+      <div class="calDayHeader">月</div>
+      <div class="calDayHeader">火</div>
+      <div class="calDayHeader">水</div>
+      <div class="calDayHeader">木</div>
+      <div class="calDayHeader">金</div>
+      <div class="calDayHeader sat">土</div>
+  `;
+
+  // 空白セル（月初の曜日まで）
+  for (let i = 0; i < firstDay.getDay(); i++) html += '<div class="calCell other-month"></div>';
+
+  for (let d = 1; d <= lastDay.getDate(); d++) {
+    const dateStr = `${month.getFullYear()}-${String(month.getMonth()+1).padStart(2,'0')}-${String(d).padStart(2,'0')}`;
+    const isToday = d === today.getDate() && month.getMonth() === today.getMonth() && month.getFullYear() === today.getFullYear();
+    const dayEvents = evMap[dateStr] || [];
+    html += `<div class="calCell${isToday ? ' today' : ''}"><div class="calDateNum">${d}</div>`;
+    dayEvents.forEach(ev => {
+      const type = ev['種別'] || 'BE';
+      html += `<div class="calEvent calEvent-${type}" onclick="openAttendanceModal('${ev['イベントID']}')">
+        ${ev['開始時刻'] || ''} ${type} ${ev['講師'] || ''}
+      </div>`;
+    });
+    html += '</div>';
+  }
+
+  // 末尾の空白
+  const remaining = 7 - ((firstDay.getDay() + lastDay.getDate()) % 7);
+  if (remaining < 7) for (let i = 0; i < remaining; i++) html += '<div class="calCell other-month"></div>';
+
+  html += '</div>';
+  main.innerHTML = html;
+}
+
+function changeMonth(delta) {
+  state.currentMonth = new Date(state.currentMonth.getFullYear(), state.currentMonth.getMonth() + delta, 1);
+  renderCalendar();
+}
+function goToToday() {
+  state.currentMonth = new Date();
+  renderCalendar();
+}
+
+// ============================================================
+// イベント一覧
+// ============================================================
+async function renderEventList() {
+  const main = document.getElementById('main');
+  const month = state.currentMonth;
+  const yearMonth = `${month.getFullYear()}-${String(month.getMonth()+1).padStart(2,'0')}`;
+  const res = await apiGet({ action: 'getEvents', month: yearMonth });
+  state.events = res.success ? res.data : [];
+
+  const canEdit = state.member.permission >= 2;
+  const addBtn = canEdit ? `<button class="btn btn-primary" onclick="openEventModal()">＋ イベント追加</button>` : '';
+
+  let rows = state.events.map(ev => {
+    const type = ev['種別'] || '';
+    const editBtns = canEdit ? `
+      <button class="btn btn-outline btn-sm" onclick="openEventModal('${ev['イベントID']}')">編集</button>
+      <button class="btn btn-danger btn-sm" onclick="deleteEvent('${ev['イベントID']}')">削除</button>
+    ` : '';
+    return `<tr>
+      <td>${ev['日付'] || ''}</td>
+      <td><span class="tag tag-${type}">${type}</span></td>
+      <td>${ev['開始時刻'] || ''}〜${ev['終了時刻'] || ''}</td>
+      <td>${ev['講師'] || ''}</td>
+      <td>${ev['会場'] || (ev['オンライン'] === '是' ? 'オンライン' : '')}</td>
+      <td>${ev['受講料'] ? ev['受講料']+'円' : '無料'}</td>
+      <td>
+        <button class="btn btn-outline btn-sm" onclick="openAttendanceModal('${ev['イベントID']}')">👥 参加者</button>
+        ${editBtns}
+      </td>
+    </tr>`;
+  }).join('');
+
+  if (!rows) rows = '<tr><td colspan="7" class="empty">イベントがありません</td></tr>';
+
+  main.innerHTML = `
+    <div class="card">
+      <div class="cardHeader">
+        <h2>📋 イベント一覧 - ${month.getFullYear()}年${month.getMonth()+1}月</h2>
+        <div class="flex gap8">
+          <button class="btn btn-outline btn-sm" onclick="changeMonth2(-1)">◀ 前月</button>
+          <button class="btn btn-outline btn-sm" onclick="changeMonth2(1)">翌月 ▶</button>
+          ${addBtn}
+        </div>
+      </div>
+      <div class="cardBody">
+        <div class="tableWrap">
+          <table>
+            <thead><tr>
+              <th>日付</th><th>種別</th><th>時間</th><th>講師</th>
+              <th>会場</th><th>受講料</th><th>操作</th>
+            </tr></thead>
+            <tbody>${rows}</tbody>
+          </table>
+        </div>
+      </div>
+    </div>`;
+}
+
+function changeMonth2(delta) {
+  state.currentMonth = new Date(state.currentMonth.getFullYear(), state.currentMonth.getMonth() + delta, 1);
+  renderEventList();
+}
+
+// ============================================================
+// マイスケジュール
+// ============================================================
+async function renderMySchedule() {
+  const res = await apiGet({ action: 'getMySchedule', memberId: state.member.id });
+  const events = res.success ? res.data : [];
+  const main = document.getElementById('main');
+
+  let rows = events.map(ev => {
+    const type = ev['種別'] || '';
+    return `<tr>
+      <td>${ev['日付'] || ''}</td>
+      <td><span class="tag tag-${type}">${type}</span></td>
+      <td>${ev['開始時刻'] || ''}〜${ev['終了時刻'] || ''}</td>
+      <td>${ev['講師'] || ''}</td>
+      <td>${ev['会場'] || (ev['オンライン'] === '是' ? 'オンライン' : '')}</td>
+      <td>${ev['受講料'] ? ev['受講料']+'円' : '無料'}</td>
+    </tr>`;
+  }).join('');
+
+  if (!rows) rows = '<tr><td colspan="6" class="empty">参加予定のイベントがありません</td></tr>';
+
+  main.innerHTML = `
+    <div class="card">
+      <div class="cardHeader"><h2>🙋 マイスケジュール - ${state.member.name}</h2></div>
+      <div class="cardBody">
+        <div class="tableWrap">
+          <table>
+            <thead><tr><th>日付</th><th>種別</th><th>時間</th><th>講師</th><th>会場</th><th>受講料</th></tr></thead>
+            <tbody>${rows}</tbody>
+          </table>
+        </div>
+      </div>
+    </div>`;
+}
+
+// ============================================================
+// メンバー管理
+// ============================================================
+async function renderMembers() {
+  if (state.member.permission < 2) { showPage('calendar'); return; }
+  const res = await apiGet({ action: 'getMembers' }, true);
+  state.members = res.success ? res.data : [];
+  const main = document.getElementById('main');
+  const isSuperAdmin = state.member.permission >= 3;
+
+  let rows = state.members.map(m => {
+    const perm = m['権限レベル'];
+    const editBtns = isSuperAdmin ? `
+      <button class="btn btn-outline btn-sm" onclick="openMemberModal('${m['メンバーID']}')">編集</button>
+    ` : '';
+    return `<tr>
+      <td><code style="font-size:12px">${m['メンバーID']}</code></td>
+      <td>${m['氏名']}</td>
+      <td>${m['グループ'] || '-'}</td>
+      <td><span class="tag tag-perm${perm}">${PERM_LABELS[perm] || perm}</span></td>
+      <td><span class="tag ${m['状態']==='有効'?'tag-attend':'tag-absent'}">${m['状態']}</span></td>
+      <td>${editBtns}</td>
+    </tr>`;
+  }).join('');
+
+  if (!rows) rows = '<tr><td colspan="6" class="empty">メンバーがいません</td></tr>';
+
+  const addBtn = isSuperAdmin ? '<button class="btn btn-primary" onclick="openMemberModal()">＋ メンバー追加</button>' : '';
+
+  main.innerHTML = `
+    <div class="card">
+      <div class="cardHeader">
+        <h2>👥 メンバー管理（${state.members.length}名）</h2>
+        ${addBtn}
+      </div>
+      <div class="cardBody">
+        <div class="tableWrap">
+          <table>
+            <thead><tr><th>メンバーID</th><th>氏名</th><th>グループ</th><th>権限</th><th>状態</th><th>操作</th></tr></thead>
+            <tbody>${rows}</tbody>
+          </table>
+        </div>
+      </div>
+    </div>`;
+}
+
+// ============================================================
+// 設定
+// ============================================================
+async function renderConfig() {
+  if (state.member.permission < 3) { showPage('calendar'); return; }
+  const res = await apiGet({ action: 'getConfig' });
+  const config = res.success ? res.data : {};
+  const main = document.getElementById('main');
+  const keys = Object.keys(config);
+  let rows = keys.map(k => `
+    <tr>
+      <td>${k}</td>
+      <td><input type="text" id="cfg_${k}" value="${config[k]}" style="max-width:300px"></td>
+    </tr>`).join('');
+
+  main.innerHTML = `
+    <div class="card">
+      <div class="cardHeader"><h2>⚙️ システム設定</h2></div>
+      <div class="cardBody">
+        <div class="tableWrap">
+          <table><thead><tr><th>キー</th><th>値</th></tr></thead>
+          <tbody>${rows}</tbody></table>
+        </div>
+        <div class="mt20">
+          <button class="btn btn-primary" onclick="saveConfig(${JSON.stringify(keys)})">💾 設定を保存</button>
+        </div>
+      </div>
+    </div>`;
+}
+
+async function saveConfig(keys) {
+  const cfg = {};
+  keys.forEach(k => { cfg[k] = document.getElementById('cfg_' + k).value; });
+  const res = await apiPost({ action: 'updateConfig', config: cfg });
+  if (res.success) alert('設定を保存しました');
+  else alert('エラー: ' + res.error);
+}
+
+// ============================================================
+// イベントモーダル
+// ============================================================
+function openEventModal(eventId) {
+  state.editingEventId = eventId || null;
+  document.getElementById('eventModalTitle').textContent = eventId ? 'イベント編集' : 'イベント追加';
+  const fields = ['date','type','start','end','organizer','lecturer','venue','address','fee','capacity','deadline','online','zoomId','zoomPc','note'];
+  fields.forEach(f => { const el = document.getElementById('ev_' + f); if (el) el.value = ''; });
+
+  if (eventId) {
+    const ev = state.events.find(e => e['イベントID'] === eventId);
+    if (ev) {
+      document.getElementById('ev_date').value = String(ev['日付']).substring(0,10);
+      document.getElementById('ev_type').value = ev['種別'] || 'BE';
+      document.getElementById('ev_start').value = ev['開始時刻'] || '';
+      document.getElementById('ev_end').value = ev['終了時刻'] || '';
+      document.getElementById('ev_organizer').value = ev['主催'] || '全厚済';
+      document.getElementById('ev_lecturer').value = ev['講師'] || '';
+      document.getElementById('ev_venue').value = ev['会場'] || '';
+      document.getElementById('ev_address').value = ev['会場住所'] || '';
+      document.getElementById('ev_fee').value = ev['受講料'] || '';
+      document.getElementById('ev_capacity').value = ev['定員'] || '';
+      document.getElementById('ev_online').value = ev['オンライン'] || '否';
+      document.getElementById('ev_zoomId').value = ev['ZoomID'] || '';
+      document.getElementById('ev_zoomPc').value = ev['パスコード'] || '';
+      document.getElementById('ev_note').value = ev['備考'] || '';
+    }
+  }
+  openModal('eventModal');
+}
+
+async function saveEvent() {
+  const params = {
+    action: state.editingEventId ? 'updateEvent' : 'addEvent',
+    eventId: state.editingEventId,
+    '日付': document.getElementById('ev_date').value,
+    '種別': document.getElementById('ev_type').value,
+    '開始時刻': document.getElementById('ev_start').value,
+    '終了時刻': document.getElementById('ev_end').value,
+    '主催': document.getElementById('ev_organizer').value,
+    '講師': document.getElementById('ev_lecturer').value,
+    '会場': document.getElementById('ev_venue').value,
+    '会場住所': document.getElementById('ev_address').value,
+    '受講料': document.getElementById('ev_fee').value,
+    '定員': document.getElementById('ev_capacity').value,
+    'オンライン': document.getElementById('ev_online').value,
+    'ZoomID': document.getElementById('ev_zoomId').value,
+    'パスコード': document.getElementById('ev_zoomPc').value,
+    '備考': document.getElementById('ev_note').value,
+  };
+  if (!params['日付'] || !params['講師']) return alert('日付・講師は必須です');
+  const res = await apiPost(params);
+  if (res.success) { closeModal('eventModal'); showPage(state.currentPage); }
+  else alert('エラー: ' + res.error);
+}
+
+async function deleteEvent(eventId) {
+  if (!confirm('このイベントを削除しますか？参加者データも削除されます。')) return;
+  const res = await apiPost({ action: 'deleteEvent', eventId });
+  if (res.success) showPage(state.currentPage);
+  else alert('エラー: ' + res.error);
+}
+
+// ============================================================
+// 参加者モーダル
+// ============================================================
+async function openAttendanceModal(eventId) {
+  state.currentAttendanceEventId = eventId;
+  const ev = state.events.find(e => e['イベントID'] === eventId) || {};
+  const type = ev['種別'] || '';
+  document.getElementById('attModalTitle').textContent = `参加者管理 - ${ev['日付'] || ''} ${type} ${ev['講師'] || ''}`;
+  document.getElementById('attEventInfo').textContent =
+    `${ev['開始時刻'] || ''}〜${ev['終了時刻'] || ''}　${ev['会場'] || ''}　受講料：${ev['受講料'] ? ev['受講料']+'円' : '無料'}`;
+
+  // スタッフ以上のみメンバー追加
+  document.querySelectorAll('.staff-only').forEach(el => {
+    el.style.display = state.member.permission >= 1 ? '' : 'none';
+  });
+
+  // BEのみゲスト追加（全員可）は表示、他はスタッフ以上
+  const guestBtn = document.querySelector('[onclick="openGuestAdd()"]');
+  if (guestBtn) {
+    guestBtn.style.display = (type === 'BE' || state.member.permission >= 1) ? '' : 'none';
+  }
+
+  await loadAttendance(eventId);
+  openModal('attendanceModal');
+}
+
+async function loadAttendance(eventId) {
+  const res = await apiGet({ action: 'getAttendance', eventId });
+  const list = res.success ? res.data : [];
+  const listEl = document.getElementById('attendanceList');
+  const countEl = document.getElementById('attCount');
+
+  const attending = list.filter(a => a['参加状態'] === '参加');
+  countEl.textContent = `参加: ${attending.length}名 / 全${list.length}名`;
+
+  if (!list.length) {
+    listEl.innerHTML = '<div class="empty">参加者がいません</div>';
+    return;
+  }
+
+  const STATUS_OPTIONS = ['参加', '不参加', 'キャンセル待ち'];
+  listEl.innerHTML = list.map((a, i) => {
+    const isGuest = String(a['メンバーID']).startsWith('GUEST_');
+    const canChange = state.member.permission >= 1 || String(a['メンバーID']) === String(state.member.id);
+    const statusSel = canChange
+      ? `<select onchange="changeAttStatus('${a['イベントID']}','${a['メンバーID']}',this.value)" style="font-size:12px;padding:3px 6px">
+          ${STATUS_OPTIONS.map(s => `<option ${s===a['参加状態']?'selected':''}>${s}</option>`).join('')}
+        </select>`
+      : `<span class="tag tag-${a['参加状態']==='参加'?'attend':a['参加状態']==='不参加'?'absent':'pending'}">${a['参加状態']}</span>`;
+
+    return `<div class="attendRow">
+      <div>
+        <span style="font-weight:500">${i+1}. ${a['氏名']}</span>
+        ${isGuest ? '<span class="tag tag-guest" style="margin-left:6px">新規/非会員</span>' : ''}
+      </div>
+      <div class="flex gap8 align-center">${statusSel}</div>
+    </div>`;
+  }).join('');
+}
+
+async function changeAttStatus(eventId, memberId, status) {
+  const res = await apiPost({ action: 'updateAttendance', eventId, memberId, status });
+  if (!res.success) { alert('エラー: ' + res.error); loadAttendance(eventId); }
+  else {
+    const countEl = document.getElementById('attCount');
+    // 再ロード
+    await loadAttendance(eventId);
+  }
+}
+
+function openGuestAdd() { document.getElementById('guestAddRow').classList.remove('hidden'); }
+function closeGuestAdd() { document.getElementById('guestAddRow').classList.add('hidden'); }
+async function submitGuest() {
+  const name = document.getElementById('guestNameInput').value.trim();
+  if (!name) return alert('氏名を入力してください');
+  const res = await apiPost({ action: 'addGuest', eventId: state.currentAttendanceEventId, guestName: name });
+  if (res.success) { closeGuestAdd(); document.getElementById('guestNameInput').value = ''; await loadAttendance(state.currentAttendanceEventId); }
+  else alert('エラー: ' + res.error);
+}
+
+function openMemberAdd() {
+  const sel = document.getElementById('memberSelectInput');
+  sel.innerHTML = '<option value="">メンバーを選択...</option>';
+  state.members.forEach(m => {
+    sel.innerHTML += `<option value="${m['メンバーID']}">${m['氏名']}</option>`;
+  });
+  document.getElementById('memberSelectRow').classList.remove('hidden');
+}
+function closeMemberAdd() { document.getElementById('memberSelectRow').classList.add('hidden'); }
+async function submitMemberAttend() {
+  const memberId = document.getElementById('memberSelectInput').value;
+  if (!memberId) return alert('メンバーを選択してください');
+  const res = await apiPost({ action: 'updateAttendance', eventId: state.currentAttendanceEventId, memberId, status: '参加' });
+  if (res.success) { closeMemberAdd(); await loadAttendance(state.currentAttendanceEventId); }
+  else alert('エラー: ' + res.error);
+}
+
+// ============================================================
+// メンバーモーダル
+// ============================================================
+function openMemberModal(memberId) {
+  state.editingMemberId = memberId || null;
+  document.getElementById('memberModalTitle').textContent = memberId ? 'メンバー編集' : 'メンバー追加';
+  ['name','kana','group','pw'].forEach(f => { document.getElementById('mem_'+f).value = ''; });
+  document.getElementById('mem_perm').value = '0';
+  document.getElementById('mem_status').value = '有効';
+
+  if (memberId) {
+    const m = state.members.find(m => m['メンバーID'] === memberId);
+    if (m) {
+      document.getElementById('mem_name').value = m['氏名'] || '';
+      document.getElementById('mem_kana').value = m['ふりがな'] || '';
+      document.getElementById('mem_group').value = m['グループ'] || '';
+      document.getElementById('mem_perm').value = m['権限レベル'] || 0;
+      document.getElementById('mem_status').value = m['状態'] || '有効';
+    }
+  }
+  openModal('memberModal');
+}
+
+async function saveMember() {
+  const params = {
+    action: state.editingMemberId ? 'updateMember' : 'addMember',
+    memberId: state.editingMemberId,
+    '氏名': document.getElementById('mem_name').value,
+    'ふりがな': document.getElementById('mem_kana').value,
+    'グループ': document.getElementById('mem_group').value,
+    permission: parseInt(document.getElementById('mem_perm').value),
+    password: document.getElementById('mem_pw').value || undefined,
+    '状態': document.getElementById('mem_status').value,
+  };
+  if (!params['氏名']) return alert('氏名は必須です');
+  const res = await apiPost(params);
+  if (res.success) {
+    closeModal('memberModal');
+    if (res.memberId) alert(`メンバーを追加しました\nメンバーID: ${res.memberId}\n初期PW: ${params.password || res.memberId}`);
+    renderMembers();
+  } else alert('エラー: ' + res.error);
+}
+
+// ============================================================
+// モーダル制御
+// ============================================================
+function openModal(id) { document.getElementById(id).classList.add('open'); }
+function closeModal(id) { document.getElementById(id).classList.remove('open'); }
+document.querySelectorAll('.overlay').forEach(el => {
+  el.addEventListener('click', e => { if (e.target === el) el.classList.remove('open'); });
+});
+
+// ============================================================
+// API通信
+// ============================================================
+async function apiGet(params) {
+  const qs = new URLSearchParams(params).toString();
+  try {
+    const res = await fetch(`${GAS_URL}?${qs}`);
+    return await res.json();
+  } catch (e) { return { success: false, error: 'ネットワークエラー: ' + e.message }; }
+}
+
+async function apiPost(params) {
+  if (state.token) params.token = state.token;
+  try {
+    const res = await fetch(GAS_URL, {
+      method: 'POST',
+      body: JSON.stringify(params)
+    });
+    return await res.json();
+  } catch (e) { return { success: false, error: 'ネットワークエラー: ' + e.message }; }
+}
+
+// ============================================================
+// 起動
+// ============================================================
+window.addEventListener('keydown', e => { if (e.key === 'Enter' && document.getElementById('loginScreen').style.display !== 'none') doLogin(); });
+initApp();
+</script>
+</body>
+</html>
