@@ -975,7 +975,12 @@ async function renderCalendar() {
       <div class="calDateNum">${d}</div>`;
     dayEvents.forEach(ev => {
       const type = ev['種別'] || 'BE';
-      html += `<div class="calEvent calEvent-${type}" onclick="openAttSheet('${ev['イベントID']}')">${type} ${ev['講師']||''}</div>`;
+      const canEdit = state.member.permission >= 2;
+      html += `<div class="calEvent calEvent-${type}"
+        onclick="openAttSheet('${ev['イベントID']}')"
+        oncontextmenu="if(${canEdit}){event.preventDefault();openEventSheet('${ev['イベントID']}')}"
+        title="${type} ${ev['講師']||''}"
+      >${type} ${ev['講師']||''}</div>`;
     });
     html += '</div>';
   }
@@ -1014,35 +1019,7 @@ async function renderEventList() {
   if (!state.events.length) {
     html += `<div class="emptyState"><div class="emptyIcon">📭</div><p>イベントがありません</p></div>`;
   } else {
-    state.events.forEach(ev => {
-      const type = ev['種別'] || 'BE';
-      const fee = ev['受講料'] ? ev['受講料']+'円' : '無料';
-      const venue = ev['オンライン']==='是' ? '🖥 オンライン' : (ev['会場'] ? '📍 '+ev['会場'] : '');
-      const editBtns = canEdit ? `
-        <button class="btn btn-outline btn-sm" onclick="openEventSheet('${ev['イベントID']}')">✏️ 編集</button>
-        <button class="btn btn-sm" style="background:var(--danger-light);color:var(--danger)" onclick="confirmDeleteEvent('${ev['イベントID']}')">🗑 削除</button>
-      ` : '';
-      html += `
-        <div class="eventCard eventCard-${type}">
-          <div class="eventCardBody" onclick="openAttSheet('${ev['イベントID']}')">
-            <div class="eventCardTop">
-              <div class="eventCardTitle">${ev['日付']||''} ${ev['開始時刻']||''}〜${ev['終了時刻']||''}</div>
-              <span class="tag tag-${type}">${type}</span>
-            </div>
-            <div style="font-size:15px;font-weight:600;margin-bottom:4px">${ev['講師']||''}</div>
-            <div class="eventCardMeta">
-              ${venue ? `<span>${venue}</span>` : ''}
-              <span>💴 ${fee}</span>
-              ${ev['申込締切'] ? `<span>⏰ ${String(ev['申込締切']).substring(0,16)}</span>` : ''}
-            </div>
-          </div>
-          <div class="attInlineLoading" id="att-inline-${ev['イベントID']}">読み込み中…</div>
-          ${(canEdit) ? `<div class="eventCardActions">
-            <button class="btn btn-outline btn-sm" onclick="openAttSheet('${ev['イベントID']}')">👥 参加者</button>
-            ${editBtns}
-          </div>` : `<div class="eventCardActions"><button class="btn btn-primary btn-sm" style="flex:1" onclick="openAttSheet('${ev['イベントID']}')">👥 参加者を確認</button></div>`}
-        </div>`;
-    });
+    state.events.forEach(ev => { html += buildEventCard(ev, canEdit); });
   }
 
   document.getElementById('main').innerHTML = html;
@@ -1052,6 +1029,38 @@ async function renderEventList() {
   for (const ev of state.events) {
     loadAttInline(ev['イベントID']);
   }
+}
+
+// イベントカードHTMLを生成（部分更新にも使い回す）
+function buildEventCard(ev, canEdit) {
+  const type  = ev['種別'] || 'BE';
+  const fee   = ev['受講料'] ? ev['受講料']+'円' : '無料';
+  const venue = ev['オンライン']==='是' ? '🖥 オンライン' : (ev['会場'] ? '📍 '+ev['会場'] : '');
+  const evId  = ev['イベントID'];
+  const editBtns = canEdit ? `
+    <button class="btn btn-outline btn-sm" onclick="openEventSheet('${evId}')">✏️ 編集</button>
+    <button class="btn btn-sm" style="background:var(--danger-light);color:var(--danger)" onclick="confirmDeleteEvent('${evId}')">🗑 削除</button>
+  ` : '';
+  return `
+    <div class="eventCard eventCard-${type}" id="evcard-${evId}">
+      <div class="eventCardBody" onclick="openAttSheet('${evId}')">
+        <div class="eventCardTop">
+          <div class="eventCardTitle">${ev['日付']||''} ${ev['開始時刻']||''}〜${ev['終了時刻']||''}</div>
+          <span class="tag tag-${type}">${type}</span>
+        </div>
+        <div style="font-size:15px;font-weight:600;margin-bottom:4px">${ev['講師']||''}</div>
+        <div class="eventCardMeta">
+          ${venue ? `<span>${venue}</span>` : ''}
+          <span>💴 ${fee}</span>
+          ${ev['申込締切'] ? `<span>⏰ ${String(ev['申込締切']).substring(0,16)}</span>` : ''}
+        </div>
+      </div>
+      <div class="attInlineLoading" id="att-inline-${evId}">読み込み中…</div>
+      ${canEdit ? `<div class="eventCardActions">
+        <button class="btn btn-outline btn-sm" onclick="openAttSheet('${evId}')">👥 参加者</button>
+        ${editBtns}
+      </div>` : `<div class="eventCardActions"><button class="btn btn-primary btn-sm" style="flex:1" onclick="openAttSheet('${evId}')">👥 参加者を確認</button></div>`}
+    </div>`;
 }
 
 function changeMonthEv(d) { state.currentMonth = new Date(state.currentMonth.getFullYear(), state.currentMonth.getMonth()+d, 1); renderEventList(); }
@@ -1233,36 +1242,86 @@ function openEventSheet(eventId) {
 }
 
 async function saveEvent() {
+  const saveBtn = document.querySelector('#eventSheet .btn-primary');
+  if (saveBtn) { saveBtn.textContent = '保存中…'; saveBtn.disabled = true; }
+
+  const isEdit = !!state.editingEventId;
   const params = {
-    action: state.editingEventId ? 'updateEvent' : 'addEvent',
+    action: isEdit ? 'updateEvent' : 'addEvent',
     eventId: state.editingEventId,
-    '日付': document.getElementById('ev_date').value,
-    '種別': document.getElementById('ev_type').value,
+    '日付':     document.getElementById('ev_date').value,
+    '種別':     document.getElementById('ev_type').value,
     '開始時刻': document.getElementById('ev_start').value,
     '終了時刻': document.getElementById('ev_end').value,
-    '主催': document.getElementById('ev_organizer').value,
-    '講師': document.getElementById('ev_lecturer').value,
-    '会場': document.getElementById('ev_venue').value,
+    '主催':     document.getElementById('ev_organizer').value,
+    '講師':     document.getElementById('ev_lecturer').value,
+    '会場':     document.getElementById('ev_venue').value,
     '会場住所': document.getElementById('ev_address').value,
-    '受講料': document.getElementById('ev_fee').value,
-    '定員': document.getElementById('ev_capacity').value,
+    '受講料':   document.getElementById('ev_fee').value,
+    '定員':     document.getElementById('ev_capacity').value,
     'オンライン': document.getElementById('ev_online').value,
-    'ZoomID': document.getElementById('ev_zoomId').value,
+    'ZoomID':   document.getElementById('ev_zoomId').value,
     'パスコード': document.getElementById('ev_zoomPc').value,
-    '備考': document.getElementById('ev_note').value,
+    '備考':     document.getElementById('ev_note').value,
   };
-  if (!params['日付'] || !params['講師']) { showToast('日付・講師は必須です', 'error'); return; }
+
+  if (!params['日付'] || !params['講師']) {
+    showToast('日付・講師は必須です', 'error');
+    if (saveBtn) { saveBtn.textContent = '💾 保存'; saveBtn.disabled = false; }
+    return;
+  }
+
   const res = await apiPost(params);
-  if (res.success) { closeSheet('eventSheet'); showPage(state.currentPage); showToast('保存しました ✓'); }
-  else showToast('エラー: '+res.error, 'error');
+  if (saveBtn) { saveBtn.textContent = '💾 保存'; saveBtn.disabled = false; }
+
+  if (!res.success) { showToast('エラー: '+res.error, 'error'); return; }
+
+  closeSheet('eventSheet');
+  showToast('保存しました ✓');
+
+  // イベントデータを最新化してページを部分更新
+  await refreshCurrentPage(isEdit ? state.editingEventId : (res.eventId || null));
 }
 
 function confirmDeleteEvent(eventId) {
   showConfirm('このイベントを削除しますか？\n参加者データも削除されます。', async () => {
     const res = await apiPost({ action: 'deleteEvent', eventId });
-    if (res.success) { showPage(state.currentPage); showToast('削除しました'); }
-    else showToast('エラー: '+res.error, 'error');
+    if (!res.success) { showToast('エラー: '+res.error, 'error'); return; }
+    showToast('削除しました');
+    await refreshCurrentPage(null);
   });
+}
+
+// イベント保存・削除後の画面再描画
+// updatedEventId: 編集したID（新規/削除はnull）
+async function refreshCurrentPage(updatedEventId) {
+  const month = state.currentMonth;
+  const yearMonth = `${month.getFullYear()}-${String(month.getMonth()+1).padStart(2,'0')}`;
+  const res = await apiGet({ action: 'getEvents', month: yearMonth });
+  state.events = res.success ? res.data : [];
+
+  if (state.currentPage === 'calendar') {
+    // カレンダーは全体再描画（セル構造が複雑なため）
+    renderCalendar();
+  } else if (state.currentPage === 'events') {
+    // イベント一覧：カード単位で差し替え
+    if (updatedEventId) {
+      // 編集：該当カードだけ差し替え
+      const ev = state.events.find(e => e['イベントID'] === updatedEventId);
+      if (ev) {
+        const cardEl = document.getElementById(`evcard-${updatedEventId}`);
+        if (cardEl) {
+          cardEl.outerHTML = buildEventCard(ev, state.member.permission >= 2);
+          loadAttInline(updatedEventId);
+          return;
+        }
+      }
+    }
+    // 新規追加・削除・カードが見つからない場合は全体再描画
+    renderEventList();
+  } else if (state.currentPage === 'mySchedule') {
+    renderMySchedule();
+  }
 }
 
 // ============================================================
