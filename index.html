@@ -337,6 +337,17 @@
       <button class="btn-icon" onclick="closeModal('memberModal')">✕</button>
     </div>
     <div class="modalBody">
+      <!-- メンバーID（編集時は変更可） -->
+      <div id="memberIdSection" style="margin-bottom:16px;padding:12px;background:#f8f9fa;border-radius:6px;border:1px solid var(--border)">
+        <div class="formGroup">
+          <label>メンバーID</label>
+          <div class="flex gap8" style="align-items:center">
+            <input type="text" id="mem_id_display" style="max-width:240px;font-family:monospace;font-size:13px" placeholder="自動生成（任意で指定可）">
+            <span id="mem_id_locked_badge" class="tag tag-perm1" style="white-space:nowrap;display:none">🔒 変更あり → Attendance連動更新</span>
+          </div>
+          <span class="permNote">※編集時に変更すると参加履歴のIDも自動で更新されます</span>
+        </div>
+      </div>
       <div class="formGrid">
         <div class="formGroup">
           <label>氏名 *</label>
@@ -360,9 +371,16 @@
           </select>
           <span class="permNote">※権限変更は最高管理者のみ可能</span>
         </div>
-        <div class="formGroup">
+        <div class="formGroup span2">
           <label>パスワード</label>
-          <input type="password" id="mem_pw" placeholder="未入力=メンバーIDが初期PW">
+          <div class="flex gap8" style="align-items:center">
+            <input type="password" id="mem_pw" placeholder="未入力=変更なし（新規時はIDが初期PW）" style="flex:1">
+            <button type="button" class="btn btn-outline btn-sm" onclick="togglePwVisibility()" id="mem_pw_toggle" title="パスワードを表示/非表示">👁</button>
+          </div>
+          <div id="mem_pw_preview" style="display:none;margin-top:6px;padding:6px 10px;background:#fff3cd;border-radius:4px;font-family:monospace;font-size:13px;border:1px solid #ffc107;color:#856404">
+            <!-- 表示時に入力値を反映 -->
+          </div>
+          <span class="permNote">※パスワードはSHA-256でハッシュ化されて保存されます</span>
         </div>
         <div class="formGroup">
           <label>状態</label>
@@ -907,39 +925,94 @@ async function submitMemberAttend() {
 function openMemberModal(memberId) {
   state.editingMemberId = memberId || null;
   document.getElementById('memberModalTitle').textContent = memberId ? 'メンバー編集' : 'メンバー追加';
+  // フィールド初期化
   ['name','kana','group','pw'].forEach(f => { document.getElementById('mem_'+f).value = ''; });
   document.getElementById('mem_perm').value = '0';
   document.getElementById('mem_status').value = '有効';
+  document.getElementById('mem_id_display').value = '';
+  document.getElementById('mem_id_locked_badge').style.display = 'none';
+  // PW表示リセット
+  const pwEl = document.getElementById('mem_pw');
+  pwEl.type = 'password';
+  document.getElementById('mem_pw_toggle').textContent = '👁';
+  document.getElementById('mem_pw_preview').style.display = 'none';
 
   if (memberId) {
     const m = state.members.find(m => m['メンバーID'] === memberId);
     if (m) {
+      document.getElementById('mem_id_display').value = m['メンバーID'] || '';
       document.getElementById('mem_name').value = m['氏名'] || '';
       document.getElementById('mem_kana').value = m['ふりがな'] || '';
       document.getElementById('mem_group').value = m['グループ'] || '';
       document.getElementById('mem_perm').value = m['権限レベル'] || 0;
       document.getElementById('mem_status').value = m['状態'] || '有効';
+      // ID変更検知
+      document.getElementById('mem_id_display').addEventListener('input', function() {
+        const changed = this.value.trim() !== (m['メンバーID'] || '');
+        document.getElementById('mem_id_locked_badge').style.display = changed ? '' : 'none';
+      }, { once: false });
     }
+  } else {
+    document.getElementById('mem_id_display').placeholder = '自動生成（任意で指定可）';
   }
   openModal('memberModal');
 }
 
+// PW表示トグル
+function togglePwVisibility() {
+  const pwEl = document.getElementById('mem_pw');
+  const btn = document.getElementById('mem_pw_toggle');
+  const preview = document.getElementById('mem_pw_preview');
+  if (pwEl.type === 'password') {
+    pwEl.type = 'text';
+    btn.textContent = '🙈';
+    // 入力値をプレビューに表示（値が空の場合は非表示）
+    if (pwEl.value) {
+      preview.textContent = '入力中: ' + pwEl.value;
+      preview.style.display = 'block';
+    }
+  } else {
+    pwEl.type = 'password';
+    btn.textContent = '👁';
+    preview.style.display = 'none';
+  }
+}
+
 async function saveMember() {
+  const isEdit = !!state.editingMemberId;
+  const inputId = document.getElementById('mem_id_display').value.trim();
+  const pw = document.getElementById('mem_pw').value;
+
   const params = {
-    action: state.editingMemberId ? 'updateMember' : 'addMember',
-    memberId: state.editingMemberId,
+    action: isEdit ? 'updateMember' : 'addMember',
+    memberId: state.editingMemberId,                        // 現在のID（編集時）
+    newMemberId: isEdit && inputId !== state.editingMemberId ? inputId : undefined,  // 変更後ID
+    customMemberId: !isEdit && inputId ? inputId : undefined,  // 新規時カスタムID
     '氏名': document.getElementById('mem_name').value,
     'ふりがな': document.getElementById('mem_kana').value,
     'グループ': document.getElementById('mem_group').value,
+    '権限レベル': parseInt(document.getElementById('mem_perm').value),
     permission: parseInt(document.getElementById('mem_perm').value),
-    password: document.getElementById('mem_pw').value || undefined,
+    password: pw || undefined,
     '状態': document.getElementById('mem_status').value,
   };
   if (!params['氏名']) return alert('氏名は必須です');
+  if (isEdit && params.newMemberId && !confirm(`メンバーIDを変更します。\n${state.editingMemberId} → ${params.newMemberId}\n\n参加履歴のIDも自動更新されます。続けますか？`)) return;
+
   const res = await apiPost(params);
   if (res.success) {
     closeModal('memberModal');
-    if (res.memberId) alert(`メンバーを追加しました\nメンバーID: ${res.memberId}\n初期PW: ${params.password || res.memberId}`);
+    if (!isEdit) {
+      const newId = res.memberId;
+      alert(`メンバーを追加しました\nメンバーID: ${newId}\n初期PW: ${pw || newId}`);
+    } else if (params.newMemberId) {
+      // ローカルのセッション情報も更新（自分のIDを変更した場合）
+      if (String(state.member.id) === String(state.editingMemberId)) {
+        state.member.id = res.newMemberId;
+        localStorage.setItem('smMember', JSON.stringify(state.member));
+        alert('メンバーIDを変更しました。再ログインを推奨します。');
+      }
+    }
     renderMembers();
   } else alert('エラー: ' + res.error);
 }
