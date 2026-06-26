@@ -2,159 +2,455 @@
 <html lang="ja">
 <head>
 <meta charset="UTF-8">
-<meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>セミナー管理システム</title>
+<meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="default">
+<meta name="theme-color" content="#1a73e8">
+<title>セミナー管理</title>
 <style>
-  :root {
-    --primary: #1a73e8;
-    --primary-dark: #1557b0;
-    --danger: #d93025;
-    --success: #188038;
-    --warning: #f29900;
-    --bg: #f8f9fa;
-    --surface: #ffffff;
-    --border: #dadce0;
-    --text: #202124;
-    --text-muted: #5f6368;
-    --radius: 8px;
-    --shadow: 0 1px 3px rgba(0,0,0,.12), 0 1px 2px rgba(0,0,0,.08);
+/* ===== RESET & BASE ===== */
+*, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; -webkit-tap-highlight-color: transparent; }
+:root {
+  --primary: #1a73e8;
+  --primary-dark: #1557b0;
+  --primary-light: #e8f0fe;
+  --danger: #d93025;
+  --danger-light: #fce8e6;
+  --success: #188038;
+  --success-light: #e6f4ea;
+  --warning: #f29900;
+  --warning-light: #fef3cd;
+  --bg: #f1f3f4;
+  --surface: #ffffff;
+  --border: #dadce0;
+  --text: #202124;
+  --text-muted: #5f6368;
+  --radius: 12px;
+  --radius-sm: 8px;
+  --shadow: 0 1px 3px rgba(0,0,0,.12), 0 1px 2px rgba(0,0,0,.08);
+  --shadow-md: 0 4px 12px rgba(0,0,0,.15);
+  /* タッチターゲット最小 44px */
+  --touch: 48px;
+  /* iOS safe area */
+  --safe-bottom: env(safe-area-inset-bottom, 0px);
+  --safe-top: env(safe-area-inset-top, 0px);
+}
+
+html { height: 100%; }
+body {
+  font-family: -apple-system, 'Hiragino Sans', 'Noto Sans JP', sans-serif;
+  background: var(--bg);
+  color: var(--text);
+  font-size: 15px;
+  line-height: 1.5;
+  min-height: 100%;
+  /* スクロール慣性 */
+  -webkit-overflow-scrolling: touch;
+}
+
+/* ===== LOGIN ===== */
+#loginScreen {
+  display: flex; align-items: center; justify-content: center;
+  min-height: 100vh; min-height: 100dvh;
+  padding: 24px 16px;
+  background: linear-gradient(160deg, #1a73e8 0%, #0d47a1 100%);
+}
+.loginCard {
+  background: var(--surface); border-radius: 20px;
+  padding: 32px 24px; width: 100%; max-width: 400px;
+  box-shadow: 0 8px 32px rgba(0,0,0,.25);
+}
+.loginLogo { font-size: 40px; text-align: center; margin-bottom: 8px; }
+.loginCard h2 { font-size: 22px; font-weight: 700; text-align: center; color: var(--text); margin-bottom: 4px; }
+.loginCard p { color: var(--text-muted); font-size: 13px; text-align: center; margin-bottom: 28px; }
+
+/* ===== APP SHELL ===== */
+#app { display: none; height: 100vh; height: 100dvh; display: none; flex-direction: column; }
+
+/* ===== HEADER ===== */
+header {
+  background: var(--primary); color: #fff;
+  height: calc(56px + var(--safe-top));
+  padding-top: var(--safe-top);
+  display: flex; align-items: center;
+  padding-left: 16px; padding-right: 8px;
+  gap: 12px;
+  position: sticky; top: 0; z-index: 100;
+  box-shadow: 0 2px 4px rgba(0,0,0,.2);
+  flex-shrink: 0;
+}
+#menuToggle {
+  background: none; border: none; color: #fff; font-size: 24px;
+  width: var(--touch); height: var(--touch);
+  display: flex; align-items: center; justify-content: center;
+  cursor: pointer; border-radius: 50%; flex-shrink: 0;
+}
+#menuToggle:active { background: rgba(255,255,255,.2); }
+header h1 { font-size: 17px; font-weight: 600; flex: 1; }
+#headerActions { display: flex; align-items: center; gap: 4px; }
+#userChip {
+  display: flex; align-items: center; gap: 6px;
+  background: rgba(255,255,255,.15); border-radius: 20px;
+  padding: 4px 10px 4px 6px; cursor: pointer;
+}
+#userAvatar {
+  width: 28px; height: 28px; border-radius: 50%;
+  background: rgba(255,255,255,.3);
+  display: flex; align-items: center; justify-content: center;
+  font-size: 13px; font-weight: 700; color: #fff;
+}
+#userName { font-size: 13px; color: #fff; max-width: 80px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+
+/* ===== BODY LAYOUT ===== */
+.appBody { flex: 1; display: flex; overflow: hidden; position: relative; }
+
+/* ===== DRAWER NAV ===== */
+#navOverlay {
+  position: fixed; inset: 0; background: rgba(0,0,0,.4);
+  z-index: 150; display: none; opacity: 0;
+  transition: opacity .2s;
+}
+#navOverlay.open { display: block; opacity: 1; }
+#sideNav {
+  position: fixed; left: 0; top: 0; bottom: 0; width: 280px;
+  background: var(--surface); z-index: 160;
+  transform: translateX(-100%); transition: transform .25s ease;
+  display: flex; flex-direction: column;
+  padding-top: var(--safe-top);
+  box-shadow: 4px 0 20px rgba(0,0,0,.2);
+}
+#sideNav.open { transform: translateX(0); }
+.navHeader {
+  padding: 20px 20px 16px;
+  border-bottom: 1px solid var(--border);
+  display: flex; align-items: center; justify-content: space-between;
+}
+.navHeader h2 { font-size: 16px; font-weight: 700; color: var(--primary); }
+#navClose {
+  width: var(--touch); height: var(--touch);
+  display: flex; align-items: center; justify-content: center;
+  background: none; border: none; font-size: 22px; cursor: pointer;
+  color: var(--text-muted); border-radius: 50%;
+}
+#navClose:active { background: var(--bg); }
+.navUserSection {
+  padding: 16px 20px;
+  background: var(--primary-light);
+  border-bottom: 1px solid var(--border);
+}
+.navUserName { font-weight: 700; font-size: 15px; }
+.navUserBadge {
+  display: inline-flex; margin-top: 4px;
+  padding: 2px 10px; border-radius: 12px;
+  font-size: 11px; font-weight: 600;
+  background: var(--primary); color: #fff;
+}
+.navItems { flex: 1; overflow-y: auto; padding: 8px 0; }
+.navItem {
+  display: flex; align-items: center; gap: 14px;
+  padding: 0 20px; height: var(--touch);
+  cursor: pointer; color: var(--text-muted);
+  font-size: 15px; border-left: 3px solid transparent;
+  transition: all .15s; user-select: none;
+}
+.navItem:active { background: var(--bg); }
+.navItem.active { color: var(--primary); border-left-color: var(--primary); background: var(--primary-light); font-weight: 600; }
+.navItem .icon { font-size: 20px; width: 24px; text-align: center; }
+.navDivider { height: 1px; background: var(--border); margin: 8px 16px; }
+.navLogout {
+  padding: 16px 20px; border-top: 1px solid var(--border);
+  padding-bottom: calc(16px + var(--safe-bottom));
+}
+.navLogout button {
+  width: 100%; height: var(--touch); border-radius: var(--radius-sm);
+  background: var(--danger-light); color: var(--danger);
+  border: none; font-size: 15px; font-weight: 600;
+  cursor: pointer; display: flex; align-items: center; justify-content: center; gap: 8px;
+}
+.navLogout button:active { opacity: .8; }
+
+/* ===== MAIN CONTENT ===== */
+main {
+  flex: 1; overflow-y: auto; overflow-x: hidden;
+  padding: 16px;
+  padding-bottom: calc(80px + var(--safe-bottom));
+  -webkit-overflow-scrolling: touch;
+}
+
+/* ===== BOTTOM TAB BAR（モバイルメイン） ===== */
+#bottomNav {
+  position: fixed; bottom: 0; left: 0; right: 0;
+  height: calc(60px + var(--safe-bottom));
+  padding-bottom: var(--safe-bottom);
+  background: var(--surface);
+  border-top: 1px solid var(--border);
+  display: flex; z-index: 90;
+  box-shadow: 0 -2px 8px rgba(0,0,0,.08);
+}
+.tabItem {
+  flex: 1; display: flex; flex-direction: column;
+  align-items: center; justify-content: center;
+  gap: 2px; cursor: pointer; color: var(--text-muted);
+  border: none; background: none; padding: 6px 4px;
+  transition: color .15s; font-size: 10px; font-weight: 500;
+  user-select: none;
+}
+.tabItem:active { opacity: .7; }
+.tabItem.active { color: var(--primary); }
+.tabIcon { font-size: 22px; line-height: 1; }
+.tabItem.active .tabIcon { filter: none; }
+
+/* ===== CARDS ===== */
+.card {
+  background: var(--surface); border-radius: var(--radius);
+  box-shadow: var(--shadow); margin-bottom: 12px; overflow: hidden;
+}
+.cardHeader {
+  padding: 14px 16px; border-bottom: 1px solid var(--border);
+  display: flex; align-items: center; justify-content: space-between; gap: 8px;
+}
+.cardHeader h2 { font-size: 15px; font-weight: 700; flex: 1; }
+.cardBody { padding: 16px; }
+
+/* ===== FORMS ===== */
+.formStack { display: flex; flex-direction: column; gap: 14px; }
+.formRow { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
+.formGroup { display: flex; flex-direction: column; gap: 6px; }
+.formGroup.full { grid-column: 1 / -1; }
+label { font-size: 12px; font-weight: 600; color: var(--text-muted); letter-spacing: .3px; }
+input, select, textarea {
+  border: 1.5px solid var(--border); border-radius: var(--radius-sm);
+  padding: 0 14px; height: var(--touch);
+  font-size: 16px; /* iOS zoom防止 */
+  font-family: inherit; width: 100%;
+  background: var(--surface); color: var(--text);
+  transition: border-color .15s, box-shadow .15s;
+  -webkit-appearance: none; appearance: none;
+}
+input:focus, select:focus { outline: none; border-color: var(--primary); box-shadow: 0 0 0 3px rgba(26,115,232,.15); }
+textarea { height: auto; min-height: 88px; padding: 12px 14px; resize: vertical; }
+select { background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='8'%3E%3Cpath d='M0 0l6 8 6-8z' fill='%235f6368'/%3E%3C/svg%3E"); background-repeat: no-repeat; background-position: right 14px center; padding-right: 36px; }
+.permNote { font-size: 11px; color: var(--text-muted); }
+
+/* ===== BUTTONS ===== */
+.btn {
+  display: inline-flex; align-items: center; justify-content: center; gap: 6px;
+  padding: 0 20px; height: var(--touch); border-radius: var(--radius-sm);
+  border: none; cursor: pointer; font-size: 15px; font-family: inherit; font-weight: 600;
+  transition: all .15s; user-select: none; white-space: nowrap;
+}
+.btn:active { transform: scale(.97); }
+.btn-primary { background: var(--primary); color: #fff; }
+.btn-primary:active { background: var(--primary-dark); }
+.btn-danger { background: var(--danger); color: #fff; }
+.btn-outline { background: transparent; border: 1.5px solid var(--border); color: var(--text); }
+.btn-ghost { background: transparent; color: var(--primary); border: none; font-weight: 600; }
+.btn-full { width: 100%; }
+.btn-sm { height: 36px; padding: 0 14px; font-size: 13px; border-radius: 6px; }
+.btn-icon {
+  width: var(--touch); height: var(--touch);
+  border-radius: 50%; background: transparent; border: none;
+  cursor: pointer; color: var(--text-muted); font-size: 20px;
+  display: flex; align-items: center; justify-content: center;
+  flex-shrink: 0;
+}
+.btn-icon:active { background: var(--bg); }
+
+/* ===== FAB (フローティングアクションボタン) ===== */
+.fab {
+  position: fixed; right: 20px;
+  bottom: calc(72px + var(--safe-bottom));
+  width: 56px; height: 56px; border-radius: 50%;
+  background: var(--primary); color: #fff; border: none;
+  font-size: 28px; cursor: pointer; z-index: 80;
+  box-shadow: 0 4px 12px rgba(26,115,232,.4);
+  display: flex; align-items: center; justify-content: center;
+  transition: transform .15s;
+}
+.fab:active { transform: scale(.92); }
+
+/* ===== TAGS ===== */
+.tag { display: inline-flex; align-items: center; padding: 3px 10px; border-radius: 20px; font-size: 12px; font-weight: 700; }
+.tag-BE   { background: #e8f0fe; color: #1a73e8; }
+.tag-BT   { background: #e6f4ea; color: #188038; }
+.tag-BS   { background: #fce8b2; color: #8a5a00; }
+.tag-PBS  { background: #fce8e6; color: #c5221f; }
+.tag-attend  { background: #e6f4ea; color: #188038; }
+.tag-absent  { background: #fce8e6; color: #c5221f; }
+.tag-pending { background: #fef3cd; color: #856404; }
+.tag-guest   { background: #f3e8fd; color: #7b1fa2; }
+.tag-perm0 { background: #f1f3f4; color: #5f6368; }
+.tag-perm1 { background: #e8f0fe; color: #1a73e8; }
+.tag-perm2 { background: #e6f4ea; color: #188038; }
+.tag-perm3 { background: #fce8e6; color: #c5221f; }
+
+/* ===== CALENDAR ===== */
+.calNav { display: flex; align-items: center; gap: 8px; margin-bottom: 12px; }
+.calTitle { flex: 1; font-size: 17px; font-weight: 700; text-align: center; }
+.calGrid {
+  display: grid; grid-template-columns: repeat(7, 1fr);
+  gap: 1px; background: var(--border);
+  border: 1px solid var(--border); border-radius: var(--radius);
+  overflow: hidden;
+}
+.calDayHeader {
+  background: var(--bg); padding: 8px 2px; text-align: center;
+  font-size: 11px; font-weight: 700; color: var(--text-muted);
+}
+.calDayHeader.sun { color: var(--danger); }
+.calDayHeader.sat { color: var(--primary); }
+.calCell { background: var(--surface); min-height: 72px; padding: 4px 3px; }
+.calCell.other-month { background: #fafafa; }
+.calDateNum { font-size: 12px; font-weight: 600; margin-bottom: 2px; width: 22px; height: 22px; display: flex; align-items: center; justify-content: center; }
+.calCell.sun .calDateNum { color: var(--danger); }
+.calCell.sat .calDateNum { color: var(--primary); }
+.calCell.today .calDateNum { background: var(--primary); color: #fff; border-radius: 50%; }
+.calEvent {
+  font-size: 9px; border-radius: 3px; padding: 1px 3px; margin-bottom: 1px;
+  cursor: pointer; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+  line-height: 1.4;
+}
+.calEvent-BE  { background: #e8f0fe; color: #1557b0; }
+.calEvent-BT  { background: #e6f4ea; color: #137333; }
+.calEvent-BS  { background: #fce8b2; color: #7a4d00; }
+.calEvent-PBS { background: #fce8e6; color: #b31412; }
+
+/* ===== イベントカード（リスト形式） ===== */
+.eventCard {
+  background: var(--surface); border-radius: var(--radius);
+  margin-bottom: 10px; box-shadow: var(--shadow);
+  overflow: hidden; cursor: pointer;
+  transition: box-shadow .15s;
+  border-left: 4px solid var(--primary);
+}
+.eventCard:active { box-shadow: 0 1px 4px rgba(0,0,0,.12); }
+.eventCard-BE  { border-left-color: #1a73e8; }
+.eventCard-BT  { border-left-color: #188038; }
+.eventCard-BS  { border-left-color: #f29900; }
+.eventCard-PBS { border-left-color: #d93025; }
+.eventCardBody { padding: 12px 14px; }
+.eventCardTop { display: flex; align-items: flex-start; justify-content: space-between; gap: 8px; margin-bottom: 6px; }
+.eventCardTitle { font-size: 14px; font-weight: 700; flex: 1; }
+.eventCardMeta { display: flex; flex-wrap: wrap; gap: 6px; font-size: 12px; color: var(--text-muted); }
+.eventCardMeta span { display: flex; align-items: center; gap: 3px; }
+.eventCardActions { display: flex; gap: 6px; padding: 8px 14px; border-top: 1px solid var(--border); background: #fafafa; }
+.eventCardActions button { flex: 1; height: 38px; font-size: 13px; }
+
+/* ===== 参加者リスト ===== */
+.attendList { }
+.attendItem {
+  display: flex; align-items: center; gap: 12px;
+  padding: 12px 16px; border-bottom: 1px solid var(--border);
+  background: var(--surface);
+}
+.attendItem:last-child { border-bottom: none; }
+.attendNum { font-size: 12px; color: var(--text-muted); width: 20px; flex-shrink: 0; text-align: center; }
+.attendName { flex: 1; font-size: 15px; font-weight: 500; }
+.attendStatus select {
+  height: 36px; font-size: 13px; padding: 0 28px 0 10px;
+  border-radius: 20px; border-width: 1.5px;
+}
+
+/* ===== メンバーカード ===== */
+.memberCard {
+  display: flex; align-items: center; gap: 12px;
+  padding: 14px 16px; background: var(--surface);
+  border-bottom: 1px solid var(--border); cursor: pointer;
+}
+.memberCard:active { background: var(--bg); }
+.memberAvatar {
+  width: 40px; height: 40px; border-radius: 50%;
+  background: var(--primary-light); color: var(--primary);
+  display: flex; align-items: center; justify-content: center;
+  font-size: 16px; font-weight: 700; flex-shrink: 0;
+}
+.memberInfo { flex: 1; min-width: 0; }
+.memberName { font-size: 15px; font-weight: 600; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.memberSub { font-size: 12px; color: var(--text-muted); margin-top: 1px; }
+.memberChevron { color: var(--border); font-size: 18px; }
+
+/* ===== BOTTOM SHEET（シートモーダル） ===== */
+.sheet-overlay {
+  position: fixed; inset: 0; background: rgba(0,0,0,.45); z-index: 200;
+  display: none; align-items: flex-end;
+}
+.sheet-overlay.open { display: flex; }
+.sheet {
+  background: var(--surface); border-radius: 20px 20px 0 0;
+  width: 100%; max-height: 92vh;
+  display: flex; flex-direction: column;
+  box-shadow: 0 -4px 20px rgba(0,0,0,.15);
+  transform: translateY(100%); transition: transform .3s cubic-bezier(.4,0,.2,1);
+  padding-bottom: var(--safe-bottom);
+}
+.sheet-overlay.open .sheet { transform: translateY(0); }
+.sheetHandle {
+  width: 36px; height: 4px; background: var(--border);
+  border-radius: 2px; margin: 12px auto 0; flex-shrink: 0;
+}
+.sheetHeader {
+  padding: 12px 16px 14px; display: flex; align-items: center;
+  justify-content: space-between; border-bottom: 1px solid var(--border);
+  flex-shrink: 0;
+}
+.sheetHeader h3 { font-size: 16px; font-weight: 700; flex: 1; }
+.sheetBody { flex: 1; overflow-y: auto; padding: 16px; -webkit-overflow-scrolling: touch; }
+.sheetFooter {
+  padding: 12px 16px; border-top: 1px solid var(--border);
+  display: flex; gap: 10px; flex-shrink: 0;
+}
+
+/* ===== ALERTS & STATES ===== */
+.alert { padding: 12px 16px; border-radius: var(--radius-sm); margin-bottom: 14px; font-size: 14px; }
+.alert-error   { background: var(--danger-light); color: var(--danger); }
+.alert-success { background: var(--success-light); color: var(--success); }
+.alert-info    { background: var(--primary-light); color: var(--primary); }
+
+.emptyState { text-align: center; padding: 48px 24px; color: var(--text-muted); }
+.emptyState .emptyIcon { font-size: 48px; margin-bottom: 12px; }
+.emptyState p { font-size: 14px; }
+.loading { text-align: center; padding: 48px; color: var(--text-muted); }
+
+/* ===== MISC ===== */
+.flex { display: flex; }
+.gap8 { gap: 8px; }
+.gap12 { gap: 12px; }
+.hidden { display: none !important; }
+.section-title { font-size: 12px; font-weight: 700; color: var(--text-muted); text-transform: uppercase; letter-spacing: .8px; padding: 16px 0 8px; }
+.divider { height: 1px; background: var(--border); margin: 12px 0; }
+
+/* ===== PC向け調整（768px以上） ===== */
+@media (min-width: 768px) {
+  #bottomNav { display: none; }
+  #menuToggle { display: none; }
+  #sideNav {
+    position: sticky; top: 0; transform: none !important;
+    width: 240px; height: calc(100vh - 56px); flex-shrink: 0;
+    box-shadow: none; border-right: 1px solid var(--border);
+    padding-top: 0;
   }
-  * { box-sizing: border-box; margin: 0; padding: 0; }
-  body { font-family: 'Hiragino Sans', 'Noto Sans JP', sans-serif; background: var(--bg); color: var(--text); font-size: 14px; }
+  #navOverlay { display: none !important; }
+  .navHeader { display: none; }
+  .navUserSection { display: block; }
+  .appBody { overflow: hidden; }
+  main {
+    padding: 24px;
+    padding-bottom: 32px;
+    overflow-y: auto;
+  }
+  .fab { bottom: 32px; }
+  .sheet { border-radius: 12px; max-width: 640px; margin: auto; max-height: 88vh; }
+  .sheet.wide { max-width: 860px; }
+  .sheet-overlay { align-items: center; }
+  .sheetHandle { display: none; }
+  .calCell { min-height: 100px; }
+  .calEvent { font-size: 10px; }
+  .formRow { grid-template-columns: 1fr 1fr; }
+}
 
-  /* ===== HEADER ===== */
-  header { background: var(--primary); color: #fff; padding: 0 20px; height: 56px; display: flex; align-items: center; justify-content: space-between; box-shadow: 0 2px 4px rgba(0,0,0,.2); position: sticky; top: 0; z-index: 100; }
-  header h1 { font-size: 18px; font-weight: 600; }
-  #userInfo { display: flex; align-items: center; gap: 12px; font-size: 13px; }
-  #userName { opacity: .9; }
-  .badge { background: rgba(255,255,255,.2); border-radius: 12px; padding: 2px 10px; font-size: 11px; }
-
-  /* ===== LOGIN ===== */
-  #loginScreen { display: flex; align-items: center; justify-content: center; min-height: 100vh; }
-  .loginCard { background: var(--surface); border-radius: 12px; padding: 40px; width: 360px; box-shadow: 0 4px 12px rgba(0,0,0,.15); }
-  .loginCard h2 { font-size: 20px; margin-bottom: 8px; color: var(--primary); }
-  .loginCard p { color: var(--text-muted); margin-bottom: 28px; font-size: 13px; }
-
-  /* ===== LAYOUT ===== */
-  #app { display: none; }
-  .layout { display: flex; min-height: calc(100vh - 56px); }
-  nav { width: 220px; background: var(--surface); border-right: 1px solid var(--border); padding: 16px 0; flex-shrink: 0; }
-  .navItem { display: flex; align-items: center; gap: 10px; padding: 10px 20px; cursor: pointer; color: var(--text-muted); transition: all .15s; font-size: 14px; border-left: 3px solid transparent; }
-  .navItem:hover { background: #e8f0fe; color: var(--primary); }
-  .navItem.active { background: #e8f0fe; color: var(--primary); border-left-color: var(--primary); font-weight: 600; }
-  .navItem .icon { font-size: 18px; width: 20px; text-align: center; }
-  .navDivider { height: 1px; background: var(--border); margin: 8px 16px; }
-  main { flex: 1; padding: 24px; overflow-y: auto; }
-
-  /* ===== CARDS ===== */
-  .card { background: var(--surface); border-radius: var(--radius); box-shadow: var(--shadow); margin-bottom: 20px; }
-  .cardHeader { padding: 16px 20px; border-bottom: 1px solid var(--border); display: flex; align-items: center; justify-content: space-between; }
-  .cardHeader h2 { font-size: 16px; font-weight: 600; }
-  .cardBody { padding: 20px; }
-
-  /* ===== FORMS ===== */
-  .formGrid { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; }
-  .formGrid.cols3 { grid-template-columns: 1fr 1fr 1fr; }
-  .formGrid.cols1 { grid-template-columns: 1fr; }
-  .formGroup { display: flex; flex-direction: column; gap: 6px; }
-  .formGroup.span2 { grid-column: span 2; }
-  label { font-size: 12px; font-weight: 600; color: var(--text-muted); }
-  input, select, textarea { border: 1px solid var(--border); border-radius: 6px; padding: 8px 12px; font-size: 14px; font-family: inherit; width: 100%; transition: border .15s; background: var(--surface); color: var(--text); }
-  input:focus, select:focus, textarea:focus { outline: none; border-color: var(--primary); box-shadow: 0 0 0 2px rgba(26,115,232,.15); }
-  textarea { resize: vertical; min-height: 80px; }
-
-  /* ===== BUTTONS ===== */
-  .btn { display: inline-flex; align-items: center; gap: 6px; padding: 8px 16px; border-radius: 6px; border: none; cursor: pointer; font-size: 14px; font-family: inherit; font-weight: 500; transition: all .15s; }
-  .btn-primary { background: var(--primary); color: #fff; }
-  .btn-primary:hover { background: var(--primary-dark); }
-  .btn-danger { background: var(--danger); color: #fff; }
-  .btn-danger:hover { background: #b31412; }
-  .btn-outline { background: transparent; border: 1px solid var(--border); color: var(--text); }
-  .btn-outline:hover { background: var(--bg); }
-  .btn-sm { padding: 4px 10px; font-size: 12px; }
-  .btn-icon { padding: 6px; border-radius: 50%; background: transparent; border: none; cursor: pointer; color: var(--text-muted); font-size: 16px; }
-  .btn-icon:hover { background: var(--bg); color: var(--text); }
-
-  /* ===== TABLE ===== */
-  .tableWrap { overflow-x: auto; }
-  table { width: 100%; border-collapse: collapse; }
-  th { background: var(--bg); padding: 10px 12px; text-align: left; font-size: 12px; font-weight: 600; color: var(--text-muted); border-bottom: 2px solid var(--border); white-space: nowrap; }
-  td { padding: 10px 12px; border-bottom: 1px solid var(--border); vertical-align: middle; }
-  tr:hover td { background: #f8f9ff; }
-  tr:last-child td { border-bottom: none; }
-
-  /* ===== TAGS ===== */
-  .tag { display: inline-flex; align-items: center; padding: 2px 8px; border-radius: 12px; font-size: 11px; font-weight: 600; }
-  .tag-BE { background: #e8f0fe; color: #1a73e8; }
-  .tag-BT { background: #e6f4ea; color: #188038; }
-  .tag-BS { background: #fce8b2; color: #8a5a00; }
-  .tag-PBS { background: #fce8e6; color: #c5221f; }
-  .tag-attend { background: #e6f4ea; color: #188038; }
-  .tag-absent { background: #fce8e6; color: #c5221f; }
-  .tag-pending { background: #fef3cd; color: #856404; }
-  .tag-guest { background: #f3e8fd; color: #7b1fa2; }
-  .tag-perm0 { background: #f1f3f4; color: #5f6368; }
-  .tag-perm1 { background: #e8f0fe; color: #1a73e8; }
-  .tag-perm2 { background: #e6f4ea; color: #188038; }
-  .tag-perm3 { background: #fce8e6; color: #c5221f; }
-
-  /* ===== CALENDAR ===== */
-  .calNav { display: flex; align-items: center; gap: 12px; margin-bottom: 16px; }
-  .calTitle { font-size: 18px; font-weight: 600; min-width: 120px; text-align: center; }
-  .calGrid { display: grid; grid-template-columns: repeat(7, 1fr); gap: 1px; background: var(--border); border: 1px solid var(--border); border-radius: var(--radius); overflow: hidden; }
-  .calDayHeader { background: var(--bg); padding: 8px; text-align: center; font-size: 12px; font-weight: 600; color: var(--text-muted); }
-  .calDayHeader.sun { color: var(--danger); }
-  .calDayHeader.sat { color: var(--primary); }
-  .calCell { background: var(--surface); min-height: 100px; padding: 6px; }
-  .calCell.other-month { background: #fafafa; }
-  .calDateNum { font-size: 12px; font-weight: 500; margin-bottom: 4px; }
-  .calCell.today .calDateNum { background: var(--primary); color: #fff; border-radius: 50%; width: 22px; height: 22px; display: flex; align-items: center; justify-content: center; }
-  .calEvent { font-size: 10px; border-radius: 4px; padding: 2px 4px; margin-bottom: 2px; cursor: pointer; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-  .calEvent-BE { background: #e8f0fe; color: #1a73e8; }
-  .calEvent-BT { background: #e6f4ea; color: #188038; }
-  .calEvent-BS { background: #fce8b2; color: #8a5a00; }
-  .calEvent-PBS { background: #fce8e6; color: #c5221f; }
-
-  /* ===== MODAL ===== */
-  .overlay { display: none; position: fixed; inset: 0; background: rgba(0,0,0,.4); z-index: 200; align-items: center; justify-content: center; }
-  .overlay.open { display: flex; }
-  .modal { background: var(--surface); border-radius: 12px; width: 640px; max-width: 95vw; max-height: 90vh; overflow-y: auto; box-shadow: 0 8px 30px rgba(0,0,0,.2); }
-  .modal.wide { width: 860px; }
-  .modalHeader { padding: 20px 24px 16px; border-bottom: 1px solid var(--border); display: flex; align-items: center; justify-content: space-between; }
-  .modalHeader h3 { font-size: 16px; font-weight: 600; }
-  .modalBody { padding: 24px; }
-  .modalFooter { padding: 16px 24px; border-top: 1px solid var(--border); display: flex; justify-content: flex-end; gap: 10px; }
-
-  /* ===== ALERTS ===== */
-  .alert { padding: 12px 16px; border-radius: 6px; margin-bottom: 16px; font-size: 13px; }
-  .alert-error { background: #fce8e6; color: var(--danger); }
-  .alert-success { background: #e6f4ea; color: var(--success); }
-  .alert-info { background: #e8f0fe; color: var(--primary); }
-
-  /* ===== STATS ===== */
-  .statsGrid { display: grid; grid-template-columns: repeat(4, 1fr); gap: 16px; margin-bottom: 20px; }
-  .statCard { background: var(--surface); border-radius: var(--radius); padding: 16px 20px; box-shadow: var(--shadow); }
-  .statNum { font-size: 28px; font-weight: 700; color: var(--primary); }
-  .statLabel { font-size: 12px; color: var(--text-muted); margin-top: 4px; }
-
-  /* ===== PERMISSION NOTES ===== */
-  .permNote { font-size: 11px; color: var(--text-muted); margin-top: 4px; }
-
-  /* ===== MISC ===== */
-  .flex { display: flex; }
-  .gap8 { gap: 8px; }
-  .gap12 { gap: 12px; }
-  .mt12 { margin-top: 12px; }
-  .mt20 { margin-top: 20px; }
-  .empty { text-align: center; padding: 40px; color: var(--text-muted); }
-  .loading { text-align: center; padding: 40px; color: var(--text-muted); }
-  .searchBox { display: flex; align-items: center; gap: 10px; margin-bottom: 16px; }
-  .searchBox input { max-width: 280px; }
-  .filterRow { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; margin-bottom: 12px; }
-  .attendanceList { max-height: 400px; overflow-y: auto; }
-  .attendRow { display: flex; align-items: center; justify-content: space-between; padding: 8px 12px; border-bottom: 1px solid var(--border); }
-  .attendRow:last-child { border-bottom: none; }
-  .hidden { display: none !important; }
+@media (min-width: 1024px) {
+  #sideNav { width: 260px; }
+}
 </style>
 </head>
 <body>
@@ -162,200 +458,262 @@
 <!-- ===== LOGIN ===== -->
 <div id="loginScreen">
   <div class="loginCard">
-    <h2>📋 セミナー管理</h2>
-    <p>メンバーIDとパスワードでログインしてください</p>
-    <div id="loginError" class="alert alert-error" style="display:none"></div>
-    <div class="formGrid cols1">
+    <div class="loginLogo">📋</div>
+    <h2>セミナー管理</h2>
+    <p>メンバーIDとパスワードでログイン</p>
+    <div id="loginError" class="alert alert-error hidden"></div>
+    <div class="formStack">
       <div class="formGroup">
         <label>メンバーID</label>
-        <input id="loginId" type="text" placeholder="例：M_XXXX" autocomplete="username">
+        <input id="loginId" type="text" placeholder="例：M_XXXX" autocomplete="username" inputmode="text">
       </div>
       <div class="formGroup">
         <label>パスワード</label>
-        <input id="loginPw" type="password" placeholder="パスワード" autocomplete="current-password">
+        <div style="position:relative">
+          <input id="loginPw" type="password" placeholder="パスワード" autocomplete="current-password" style="padding-right:48px">
+          <button type="button" onclick="toggleLoginPw()" style="position:absolute;right:4px;top:50%;transform:translateY(-50%);width:40px;height:40px;background:none;border:none;font-size:18px;cursor:pointer;color:var(--text-muted)">👁</button>
+        </div>
       </div>
-      <button class="btn btn-primary" onclick="doLogin()" style="width:100%;justify-content:center;margin-top:8px">ログイン</button>
+      <button class="btn btn-primary btn-full" onclick="doLogin()">ログイン</button>
     </div>
   </div>
 </div>
 
 <!-- ===== APP ===== -->
-<div id="app">
+<div id="app" style="display:none;flex-direction:column;height:100vh;height:100dvh">
+
   <header>
-    <h1>📋 セミナー管理システム</h1>
-    <div id="userInfo">
-      <span id="userName"></span>
-      <span id="userBadge" class="badge"></span>
-      <button class="btn btn-outline" style="color:#fff;border-color:rgba(255,255,255,.4);font-size:12px;padding:4px 12px" onclick="doLogout()">ログアウト</button>
+    <button id="menuToggle" onclick="openNav()">☰</button>
+    <h1>📋 セミナー管理</h1>
+    <div id="headerActions">
+      <div id="userChip" onclick="openNav()">
+        <div id="userAvatar"></div>
+        <span id="userName"></span>
+      </div>
     </div>
   </header>
-  <div class="layout">
-    <nav id="nav">
-      <div class="navItem active" data-page="calendar" onclick="showPage('calendar')"><span class="icon">📅</span>カレンダー</div>
-      <div class="navItem" data-page="events" onclick="showPage('events')"><span class="icon">📋</span>イベント一覧</div>
-      <div class="navItem" data-page="mySchedule" onclick="showPage('mySchedule')"><span class="icon">🙋</span>マイスケジュール</div>
-      <div class="navDivider"></div>
-      <div class="navItem admin-only" data-page="members" onclick="showPage('members')"><span class="icon">👥</span>メンバー管理</div>
-      <div class="navItem super-only" data-page="config" onclick="showPage('config')"><span class="icon">⚙️</span>システム設定</div>
+
+  <div class="appBody">
+    <!-- サイドナビ（ドロワー / PCは固定） -->
+    <div id="navOverlay" onclick="closeNav()"></div>
+    <nav id="sideNav">
+      <div class="navHeader">
+        <h2>📋 セミナー管理</h2>
+        <button id="navClose" onclick="closeNav()">✕</button>
+      </div>
+      <div class="navUserSection">
+        <div id="navUserName" class="navUserName"></div>
+        <span id="navUserBadge" class="navUserBadge"></span>
+      </div>
+      <div class="navItems" id="navItems">
+        <div class="navItem active" data-page="calendar" onclick="showPage('calendar');closeNav()"><span class="icon">📅</span>カレンダー</div>
+        <div class="navItem" data-page="events" onclick="showPage('events');closeNav()"><span class="icon">📋</span>イベント一覧</div>
+        <div class="navItem" data-page="mySchedule" onclick="showPage('mySchedule');closeNav()"><span class="icon">🙋</span>マイスケジュール</div>
+        <div class="navDivider"></div>
+        <div class="navItem admin-only" data-page="members" onclick="showPage('members');closeNav()"><span class="icon">👥</span>メンバー管理</div>
+        <div class="navItem super-only" data-page="config" onclick="showPage('config');closeNav()"><span class="icon">⚙️</span>システム設定</div>
+      </div>
+      <div class="navLogout">
+        <button onclick="doLogout()">🚪 ログアウト</button>
+      </div>
     </nav>
+
+    <!-- メインコンテンツ -->
     <main id="main"></main>
+  </div>
+
+  <!-- ボトムタブバー（スマホ） -->
+  <div id="bottomNav">
+    <button class="tabItem active" data-page="calendar" onclick="showPage('calendar')">
+      <span class="tabIcon">📅</span>カレンダー
+    </button>
+    <button class="tabItem" data-page="events" onclick="showPage('events')">
+      <span class="tabIcon">📋</span>一覧
+    </button>
+    <button class="tabItem" data-page="mySchedule" onclick="showPage('mySchedule')">
+      <span class="tabIcon">🙋</span>マイ予定
+    </button>
+    <button class="tabItem admin-only" data-page="members" onclick="showPage('members')">
+      <span class="tabIcon">👥</span>メンバー
+    </button>
+    <button class="tabItem super-only" data-page="config" onclick="showPage('config')">
+      <span class="tabIcon">⚙️</span>設定
+    </button>
   </div>
 </div>
 
-<!-- ===== MODALS ===== -->
-<!-- イベント編集モーダル -->
-<div class="overlay" id="eventModal">
-  <div class="modal wide">
-    <div class="modalHeader">
-      <h3 id="eventModalTitle">イベント追加</h3>
-      <button class="btn-icon" onclick="closeModal('eventModal')">✕</button>
+<!-- ===== イベント編集シート ===== -->
+<div class="sheet-overlay" id="eventSheet">
+  <div class="sheet wide">
+    <div class="sheetHandle"></div>
+    <div class="sheetHeader">
+      <h3 id="eventSheetTitle">イベント追加</h3>
+      <button class="btn-icon" onclick="closeSheet('eventSheet')">✕</button>
     </div>
-    <div class="modalBody">
-      <div class="formGrid">
-        <div class="formGroup">
-          <label>日付 *</label>
-          <input type="date" id="ev_date">
+    <div class="sheetBody">
+      <div class="formStack">
+        <div class="formRow">
+          <div class="formGroup">
+            <label>日付 *</label>
+            <input type="date" id="ev_date">
+          </div>
+          <div class="formGroup">
+            <label>種別 *</label>
+            <select id="ev_type">
+              <option value="BE">BE</option>
+              <option value="BT">BT</option>
+              <option value="BS">BS</option>
+              <option value="PBS">PBS</option>
+            </select>
+          </div>
+        </div>
+        <div class="formRow">
+          <div class="formGroup">
+            <label>開始時刻</label>
+            <input type="time" id="ev_start">
+          </div>
+          <div class="formGroup">
+            <label>終了時刻</label>
+            <input type="time" id="ev_end">
+          </div>
+        </div>
+        <div class="formRow">
+          <div class="formGroup">
+            <label>主催</label>
+            <select id="ev_organizer">
+              <option value="全厚済">全厚済主催</option>
+              <option value="ウィナーズ">ウィナーズ主催</option>
+            </select>
+          </div>
+          <div class="formGroup">
+            <label>講師 *</label>
+            <input type="text" id="ev_lecturer" placeholder="例：山田太郎">
+          </div>
         </div>
         <div class="formGroup">
-          <label>種別 *</label>
-          <select id="ev_type">
-            <option value="BE">BE - ビジネスエクスプラネーション</option>
-            <option value="BT">BT - ビジネストレーニング</option>
-            <option value="BS">BS - ビジネスセミナー</option>
-            <option value="PBS">PBS - プライムビジネスセミナー</option>
-          </select>
-        </div>
-        <div class="formGroup">
-          <label>開始時刻 *</label>
-          <input type="time" id="ev_start">
-        </div>
-        <div class="formGroup">
-          <label>終了時刻 *</label>
-          <input type="time" id="ev_end">
-        </div>
-        <div class="formGroup">
-          <label>主催</label>
-          <select id="ev_organizer">
-            <option value="全厚済">全厚済主催</option>
-            <option value="ウィナーズ">ウィナーズ主催</option>
-          </select>
-        </div>
-        <div class="formGroup">
-          <label>講師 *</label>
-          <input type="text" id="ev_lecturer" placeholder="例：山田太郎">
-        </div>
-        <div class="formGroup span2">
           <label>会場</label>
           <input type="text" id="ev_venue" placeholder="例：大阪産業創造館">
         </div>
-        <div class="formGroup span2">
+        <div class="formGroup">
           <label>会場住所</label>
           <input type="text" id="ev_address" placeholder="例：大阪市中央区本町1-4-5">
         </div>
-        <div class="formGroup">
-          <label>受講料（円）</label>
-          <input type="number" id="ev_fee" placeholder="0">
-        </div>
-        <div class="formGroup">
-          <label>定員</label>
-          <input type="number" id="ev_capacity" placeholder="20">
+        <div class="formRow">
+          <div class="formGroup">
+            <label>受講料（円）</label>
+            <input type="number" id="ev_fee" inputmode="numeric" placeholder="0">
+          </div>
+          <div class="formGroup">
+            <label>定員</label>
+            <input type="number" id="ev_capacity" inputmode="numeric" placeholder="20">
+          </div>
         </div>
         <div class="formGroup">
           <label>申込締切</label>
           <input type="datetime-local" id="ev_deadline">
         </div>
         <div class="formGroup">
-          <label>オンライン</label>
+          <label>形式</label>
           <select id="ev_online">
             <option value="否">対面</option>
             <option value="是">オンライン（Zoom）</option>
             <option value="両方">ハイブリッド</option>
           </select>
         </div>
-        <div class="formGroup">
-          <label>Zoom ID</label>
-          <input type="text" id="ev_zoomId" placeholder="000 000 0000">
+        <div class="formRow" id="zoomFields">
+          <div class="formGroup">
+            <label>Zoom ID</label>
+            <input type="text" id="ev_zoomId" inputmode="numeric" placeholder="000 000 0000">
+          </div>
+          <div class="formGroup">
+            <label>パスコード</label>
+            <input type="text" id="ev_zoomPc" inputmode="numeric" placeholder="000000">
+          </div>
         </div>
         <div class="formGroup">
-          <label>パスコード</label>
-          <input type="text" id="ev_zoomPc" placeholder="000000">
-        </div>
-        <div class="formGroup span2">
           <label>備考</label>
-          <textarea id="ev_note" placeholder="特記事項・連絡事項など"></textarea>
+          <textarea id="ev_note" placeholder="特記事項など"></textarea>
         </div>
       </div>
     </div>
-    <div class="modalFooter">
-      <button class="btn btn-outline" onclick="closeModal('eventModal')">キャンセル</button>
-      <button class="btn btn-primary" onclick="saveEvent()">💾 保存</button>
+    <div class="sheetFooter">
+      <button class="btn btn-outline" onclick="closeSheet('eventSheet')" style="flex:0 0 auto;padding:0 16px">キャンセル</button>
+      <button class="btn btn-primary" onclick="saveEvent()" style="flex:1">💾 保存</button>
     </div>
   </div>
 </div>
 
-<!-- 参加者管理モーダル -->
-<div class="overlay" id="attendanceModal">
-  <div class="modal wide">
-    <div class="modalHeader">
-      <h3 id="attModalTitle">参加者管理</h3>
-      <button class="btn-icon" onclick="closeModal('attendanceModal')">✕</button>
+<!-- ===== 参加者管理シート ===== -->
+<div class="sheet-overlay" id="attendanceSheet">
+  <div class="sheet wide">
+    <div class="sheetHandle"></div>
+    <div class="sheetHeader">
+      <h3 id="attSheetTitle">参加者管理</h3>
+      <button class="btn-icon" onclick="closeSheet('attendanceSheet')">✕</button>
     </div>
-    <div class="modalBody">
-      <div id="attEventInfo" class="alert alert-info" style="margin-bottom:16px"></div>
-      <div class="flex gap8" style="margin-bottom:16px;flex-wrap:wrap">
-        <button class="btn btn-primary btn-sm" onclick="openGuestAdd()">＋ 新規ゲスト追加</button>
-        <button class="btn btn-outline btn-sm staff-only" onclick="openMemberAdd()">＋ メンバー追加</button>
-      </div>
-      <div id="guestAddRow" class="hidden" style="background:#f8f9fa;padding:12px;border-radius:6px;margin-bottom:12px">
-        <div class="flex gap8" style="align-items:center">
-          <input type="text" id="guestNameInput" placeholder="新規ゲスト氏名" style="max-width:200px">
+    <div class="sheetBody">
+      <div id="attEventInfo" class="alert alert-info"></div>
+
+      <!-- ゲスト追加 -->
+      <div id="guestAddRow" class="hidden" style="background:var(--bg);padding:12px;border-radius:var(--radius-sm);margin-bottom:12px">
+        <div style="font-size:13px;font-weight:600;margin-bottom:8px;color:var(--text-muted)">新規ゲスト氏名を入力</div>
+        <div class="flex gap8">
+          <input type="text" id="guestNameInput" placeholder="氏名" style="flex:1">
           <button class="btn btn-primary btn-sm" onclick="submitGuest()">追加</button>
-          <button class="btn btn-outline btn-sm" onclick="closeGuestAdd()">キャンセル</button>
+          <button class="btn btn-outline btn-sm" onclick="closeGuestAdd()">✕</button>
         </div>
       </div>
-      <div id="memberSelectRow" class="hidden" style="background:#f8f9fa;padding:12px;border-radius:6px;margin-bottom:12px">
-        <div class="flex gap8" style="align-items:center">
-          <select id="memberSelectInput" style="max-width:240px"><option value="">メンバーを選択...</option></select>
+      <!-- メンバー追加 -->
+      <div id="memberSelectRow" class="hidden" style="background:var(--bg);padding:12px;border-radius:var(--radius-sm);margin-bottom:12px">
+        <div style="font-size:13px;font-weight:600;margin-bottom:8px;color:var(--text-muted)">参加メンバーを選択</div>
+        <div class="flex gap8">
+          <select id="memberSelectInput" style="flex:1"><option value="">選択...</option></select>
           <button class="btn btn-primary btn-sm" onclick="submitMemberAttend()">追加</button>
-          <button class="btn btn-outline btn-sm" onclick="closeMemberAdd()">キャンセル</button>
+          <button class="btn btn-outline btn-sm" onclick="closeMemberAdd()">✕</button>
         </div>
       </div>
-      <div class="attendanceList" id="attendanceList"></div>
+
+      <div id="attendanceList" class="attendList"></div>
     </div>
-    <div class="modalFooter">
-      <span id="attCount" style="color:var(--text-muted);font-size:13px;margin-right:auto"></span>
-      <button class="btn btn-outline" onclick="closeModal('attendanceModal')">閉じる</button>
+    <div class="sheetFooter">
+      <span id="attCount" style="color:var(--text-muted);font-size:13px;align-self:center;margin-right:auto"></span>
+      <button class="btn btn-outline btn-sm staff-only" onclick="openGuestAdd()" id="guestBtn">＋ 新規</button>
+      <button class="btn btn-outline btn-sm staff-only" onclick="openMemberAdd()">＋ メンバー</button>
     </div>
   </div>
 </div>
 
-<!-- メンバー編集モーダル -->
-<div class="overlay" id="memberModal">
-  <div class="modal">
-    <div class="modalHeader">
-      <h3 id="memberModalTitle">メンバー追加</h3>
-      <button class="btn-icon" onclick="closeModal('memberModal')">✕</button>
+<!-- ===== メンバー編集シート ===== -->
+<div class="sheet-overlay" id="memberSheet">
+  <div class="sheet">
+    <div class="sheetHandle"></div>
+    <div class="sheetHeader">
+      <h3 id="memberSheetTitle">メンバー追加</h3>
+      <button class="btn-icon" onclick="closeSheet('memberSheet')">✕</button>
     </div>
-    <div class="modalBody">
-      <!-- メンバーID（編集時は変更可） -->
-      <div id="memberIdSection" style="margin-bottom:16px;padding:12px;background:#f8f9fa;border-radius:6px;border:1px solid var(--border)">
+    <div class="sheetBody">
+      <!-- メンバーID -->
+      <div style="background:var(--bg);border-radius:var(--radius-sm);padding:12px;margin-bottom:16px">
         <div class="formGroup">
           <label>メンバーID</label>
           <div class="flex gap8" style="align-items:center">
-            <input type="text" id="mem_id_display" style="max-width:240px;font-family:monospace;font-size:13px" placeholder="自動生成（任意で指定可）">
-            <span id="mem_id_locked_badge" class="tag tag-perm1" style="white-space:nowrap;display:none">🔒 変更あり → Attendance連動更新</span>
+            <input type="text" id="mem_id_display" style="font-family:monospace;font-size:15px" placeholder="自動生成（任意指定可）">
           </div>
-          <span class="permNote">※編集時に変更すると参加履歴のIDも自動で更新されます</span>
+          <div id="mem_id_changed" class="hidden" style="margin-top:4px;font-size:12px;color:var(--warning);font-weight:600">⚠️ 変更あり → 参加履歴のIDも自動更新されます</div>
+          <span class="permNote">編集時に変更すると参加履歴のIDも自動更新されます</span>
         </div>
       </div>
-      <div class="formGrid">
-        <div class="formGroup">
-          <label>氏名 *</label>
-          <input type="text" id="mem_name" placeholder="例：山田花子">
-        </div>
-        <div class="formGroup">
-          <label>ふりがな</label>
-          <input type="text" id="mem_kana" placeholder="やまだはなこ">
+
+      <div class="formStack">
+        <div class="formRow">
+          <div class="formGroup">
+            <label>氏名 *</label>
+            <input type="text" id="mem_name" placeholder="山田花子">
+          </div>
+          <div class="formGroup">
+            <label>ふりがな</label>
+            <input type="text" id="mem_kana" placeholder="やまだはなこ">
+          </div>
         </div>
         <div class="formGroup">
           <label>グループ</label>
@@ -364,23 +722,20 @@
         <div class="formGroup">
           <label>権限レベル</label>
           <select id="mem_perm">
-            <option value="0">0 - 一般メンバー（閲覧・参加申請）</option>
+            <option value="0">0 - 一般（閲覧・参加申請）</option>
             <option value="1">1 - スタッフ（参加者管理）</option>
             <option value="2">2 - 管理者（イベント編集）</option>
             <option value="3">3 - 最高管理者（全操作）</option>
           </select>
-          <span class="permNote">※権限変更は最高管理者のみ可能</span>
+          <span class="permNote">権限変更は最高管理者のみ可能</span>
         </div>
-        <div class="formGroup span2">
+        <div class="formGroup">
           <label>パスワード</label>
-          <div class="flex gap8" style="align-items:center">
-            <input type="password" id="mem_pw" placeholder="未入力=変更なし（新規時はIDが初期PW）" style="flex:1">
-            <button type="button" class="btn btn-outline btn-sm" onclick="togglePwVisibility()" id="mem_pw_toggle" title="パスワードを表示/非表示">👁</button>
+          <div style="position:relative">
+            <input type="password" id="mem_pw" placeholder="未入力=変更なし（新規時はIDが初期PW）" style="padding-right:52px">
+            <button type="button" onclick="toggleMemPw()" style="position:absolute;right:4px;top:50%;transform:translateY(-50%);width:44px;height:44px;background:none;border:none;font-size:20px;cursor:pointer;color:var(--text-muted)">👁</button>
           </div>
-          <div id="mem_pw_preview" style="display:none;margin-top:6px;padding:6px 10px;background:#fff3cd;border-radius:4px;font-family:monospace;font-size:13px;border:1px solid #ffc107;color:#856404">
-            <!-- 表示時に入力値を反映 -->
-          </div>
-          <span class="permNote">※パスワードはSHA-256でハッシュ化されて保存されます</span>
+          <span class="permNote">SHA-256でハッシュ化して保存されます</span>
         </div>
         <div class="formGroup">
           <label>状態</label>
@@ -391,21 +746,35 @@
         </div>
       </div>
     </div>
-    <div class="modalFooter">
-      <button class="btn btn-outline" onclick="closeModal('memberModal')">キャンセル</button>
-      <button class="btn btn-primary" onclick="saveMember()">💾 保存</button>
+    <div class="sheetFooter">
+      <button class="btn btn-outline" onclick="closeSheet('memberSheet')" style="flex:0 0 auto;padding:0 16px">キャンセル</button>
+      <button class="btn btn-primary" onclick="saveMember()" style="flex:1">💾 保存</button>
+    </div>
+  </div>
+</div>
+
+<!-- ===== 確認ダイアログ ===== -->
+<div class="sheet-overlay" id="confirmSheet">
+  <div class="sheet" style="max-height:auto">
+    <div class="sheetHandle"></div>
+    <div class="sheetBody" style="padding:24px">
+      <div id="confirmMessage" style="font-size:15px;line-height:1.6;margin-bottom:20px"></div>
+      <div class="flex gap8" style="flex-direction:column">
+        <button class="btn btn-danger btn-full" id="confirmOk">実行する</button>
+        <button class="btn btn-outline btn-full" onclick="closeSheet('confirmSheet')">キャンセル</button>
+      </div>
     </div>
   </div>
 </div>
 
 <script>
 // ============================================================
-// 設定 - GAS WebApp URLをここに入力
+// 設定
 // ============================================================
 const GAS_URL = 'https://script.google.com/macros/s/AKfycbzRIrXLmCgCiIlmtgz2DUcTCmJgdi65cXplWVVdSLSCbYt2qtFpFuPDnWJ-S1i3jzV4aA/exec';
 
 // ============================================================
-// 状態管理
+// 状態
 // ============================================================
 let state = {
   token: localStorage.getItem('smToken'),
@@ -416,24 +785,42 @@ let state = {
   members: [],
   editingEventId: null,
   editingMemberId: null,
-  currentAttendanceEventId: null
+  currentAttEventId: null,
 };
 
 const PERM_LABELS = ['一般', 'スタッフ', '管理者', '最高管理者'];
-const TYPE_LABELS = {
-  BE: 'BE', BT: 'BT', BS: 'BS', PBS: 'PBS'
-};
+
+// ============================================================
+// ドロワーナビ制御
+// ============================================================
+function openNav() {
+  document.getElementById('sideNav').classList.add('open');
+  document.getElementById('navOverlay').classList.add('open');
+  document.body.style.overflow = 'hidden';
+}
+function closeNav() {
+  document.getElementById('sideNav').classList.remove('open');
+  document.getElementById('navOverlay').classList.remove('open');
+  document.body.style.overflow = '';
+}
 
 // ============================================================
 // 認証
 // ============================================================
+function toggleLoginPw() {
+  const el = document.getElementById('loginPw');
+  el.type = el.type === 'password' ? 'text' : 'password';
+}
+
 async function doLogin() {
   const id = document.getElementById('loginId').value.trim();
   const pw = document.getElementById('loginPw').value;
-  if (!id || !pw) return showLoginError('IDとパスワードを入力してください');
+  const errEl = document.getElementById('loginError');
+  errEl.classList.add('hidden');
+  if (!id || !pw) { errEl.textContent = 'IDとパスワードを入力してください'; errEl.classList.remove('hidden'); return; }
 
   const res = await apiGet({ action: 'login', memberId: id, password: pw });
-  if (!res.success) return showLoginError(res.error);
+  if (!res.success) { errEl.textContent = res.error; errEl.classList.remove('hidden'); return; }
 
   state.token = res.token;
   state.member = res.member;
@@ -443,18 +830,11 @@ async function doLogin() {
 }
 
 function doLogout() {
-  localStorage.removeItem('smToken');
-  localStorage.removeItem('smMember');
-  state.token = null;
-  state.member = null;
+  localStorage.clear();
+  state.token = null; state.member = null;
   document.getElementById('loginScreen').style.display = 'flex';
   document.getElementById('app').style.display = 'none';
-}
-
-function showLoginError(msg) {
-  const el = document.getElementById('loginError');
-  el.textContent = msg;
-  el.style.display = 'block';
+  closeNav();
 }
 
 // ============================================================
@@ -467,14 +847,19 @@ function initApp() {
     return;
   }
   document.getElementById('loginScreen').style.display = 'none';
-  document.getElementById('app').style.display = 'block';
-  document.getElementById('userName').textContent = state.member.name;
-  document.getElementById('userBadge').textContent = PERM_LABELS[state.member.permission] || '';
+  document.getElementById('app').style.display = 'flex';
 
-  // 権限に応じてナビ表示
   const perm = state.member.permission;
+  const initials = (state.member.name || '?').slice(0, 1);
+  document.getElementById('userAvatar').textContent = initials;
+  document.getElementById('userName').textContent = state.member.name;
+  document.getElementById('navUserName').textContent = state.member.name;
+  document.getElementById('navUserBadge').textContent = PERM_LABELS[perm] || '';
+
+  // 権限によって非表示
   document.querySelectorAll('.admin-only').forEach(el => el.style.display = perm >= 2 ? '' : 'none');
   document.querySelectorAll('.super-only').forEach(el => el.style.display = perm >= 3 ? '' : 'none');
+  document.querySelectorAll('.staff-only').forEach(el => el.style.display = perm >= 1 ? '' : 'none');
 
   showPage('calendar');
 }
@@ -484,17 +869,16 @@ function initApp() {
 // ============================================================
 function showPage(page) {
   state.currentPage = page;
-  document.querySelectorAll('.navItem').forEach(el => {
+  document.querySelectorAll('.navItem, .tabItem').forEach(el => {
     el.classList.toggle('active', el.dataset.page === page);
   });
-  const main = document.getElementById('main');
-  main.innerHTML = '<div class="loading">読み込み中...</div>';
+  document.getElementById('main').innerHTML = '<div class="loading">読み込み中…</div>';
   switch (page) {
-    case 'calendar':    renderCalendar(); break;
-    case 'events':      renderEventList(); break;
-    case 'mySchedule':  renderMySchedule(); break;
-    case 'members':     renderMembers(); break;
-    case 'config':      renderConfig(); break;
+    case 'calendar':   renderCalendar(); break;
+    case 'events':     renderEventList(); break;
+    case 'mySchedule': renderMySchedule(); break;
+    case 'members':    renderMembers(); break;
+    case 'config':     renderConfig(); break;
   }
 }
 
@@ -507,137 +891,122 @@ async function renderCalendar() {
   const res = await apiGet({ action: 'getEvents', month: yearMonth });
   state.events = res.success ? res.data : [];
 
-  const main = document.getElementById('main');
   const today = new Date();
   const firstDay = new Date(month.getFullYear(), month.getMonth(), 1);
-  const lastDay = new Date(month.getFullYear(), month.getMonth()+1, 0);
+  const lastDay  = new Date(month.getFullYear(), month.getMonth()+1, 0);
 
-  // イベントをdateでグループ化
+  // イベントをdate別にグループ化
   const evMap = {};
   state.events.forEach(ev => {
-    const d = String(ev['日付']).substring(0, 10);
+    const d = String(ev['日付']).substring(0,10);
     if (!evMap[d]) evMap[d] = [];
     evMap[d].push(ev);
   });
 
-  const addBtn = state.member.permission >= 2
-    ? `<button class="btn btn-primary" onclick="openEventModal()">＋ イベント追加</button>` : '';
+  const canEdit = state.member.permission >= 2;
 
   let html = `
     <div class="calNav">
-      <button class="btn btn-outline" onclick="changeMonth(-1)">◀</button>
-      <span class="calTitle">${month.getFullYear()}年 ${month.getMonth()+1}月</span>
-      <button class="btn btn-outline" onclick="changeMonth(1)">▶</button>
+      <button class="btn-icon" onclick="changeMonth(-1)">◀</button>
+      <div class="calTitle">${month.getFullYear()}年${month.getMonth()+1}月</div>
+      <button class="btn-icon" onclick="changeMonth(1)">▶</button>
       <button class="btn btn-outline btn-sm" onclick="goToToday()">今日</button>
-      <div style="margin-left:auto">${addBtn}</div>
     </div>
     <div class="calGrid">
       <div class="calDayHeader sun">日</div>
-      <div class="calDayHeader">月</div>
-      <div class="calDayHeader">火</div>
-      <div class="calDayHeader">水</div>
-      <div class="calDayHeader">木</div>
+      <div class="calDayHeader">月</div><div class="calDayHeader">火</div>
+      <div class="calDayHeader">水</div><div class="calDayHeader">木</div>
       <div class="calDayHeader">金</div>
       <div class="calDayHeader sat">土</div>
   `;
 
-  // 空白セル（月初の曜日まで）
-  for (let i = 0; i < firstDay.getDay(); i++) html += '<div class="calCell other-month"></div>';
+  const startDow = firstDay.getDay();
+  for (let i = 0; i < startDow; i++) html += '<div class="calCell other-month"></div>';
 
   for (let d = 1; d <= lastDay.getDate(); d++) {
     const dateStr = `${month.getFullYear()}-${String(month.getMonth()+1).padStart(2,'0')}-${String(d).padStart(2,'0')}`;
+    const dow = new Date(month.getFullYear(), month.getMonth(), d).getDay();
     const isToday = d === today.getDate() && month.getMonth() === today.getMonth() && month.getFullYear() === today.getFullYear();
     const dayEvents = evMap[dateStr] || [];
-    html += `<div class="calCell${isToday ? ' today' : ''}"><div class="calDateNum">${d}</div>`;
+    const dowClass = dow === 0 ? 'sun' : dow === 6 ? 'sat' : '';
+    html += `<div class="calCell ${dowClass}${isToday?' today':''}">
+      <div class="calDateNum">${d}</div>`;
     dayEvents.forEach(ev => {
       const type = ev['種別'] || 'BE';
-      html += `<div class="calEvent calEvent-${type}" onclick="openAttendanceModal('${ev['イベントID']}')">
-        ${ev['開始時刻'] || ''} ${type} ${ev['講師'] || ''}
-      </div>`;
+      html += `<div class="calEvent calEvent-${type}" onclick="openAttSheet('${ev['イベントID']}')">${type} ${ev['講師']||''}</div>`;
     });
     html += '</div>';
   }
 
-  // 末尾の空白
-  const remaining = 7 - ((firstDay.getDay() + lastDay.getDate()) % 7);
+  const remaining = 7 - ((startDow + lastDay.getDate()) % 7);
   if (remaining < 7) for (let i = 0; i < remaining; i++) html += '<div class="calCell other-month"></div>';
-
   html += '</div>';
-  main.innerHTML = html;
+
+  document.getElementById('main').innerHTML = html;
+  if (canEdit) addFab('openEventSheet()');
 }
 
-function changeMonth(delta) {
-  state.currentMonth = new Date(state.currentMonth.getFullYear(), state.currentMonth.getMonth() + delta, 1);
+function changeMonth(d) {
+  state.currentMonth = new Date(state.currentMonth.getFullYear(), state.currentMonth.getMonth()+d, 1);
   renderCalendar();
 }
-function goToToday() {
-  state.currentMonth = new Date();
-  renderCalendar();
-}
+function goToToday() { state.currentMonth = new Date(); renderCalendar(); }
 
 // ============================================================
-// イベント一覧
+// イベント一覧（カード形式）
 // ============================================================
 async function renderEventList() {
-  const main = document.getElementById('main');
   const month = state.currentMonth;
   const yearMonth = `${month.getFullYear()}-${String(month.getMonth()+1).padStart(2,'0')}`;
   const res = await apiGet({ action: 'getEvents', month: yearMonth });
   state.events = res.success ? res.data : [];
-
   const canEdit = state.member.permission >= 2;
-  const addBtn = canEdit ? `<button class="btn btn-primary" onclick="openEventModal()">＋ イベント追加</button>` : '';
 
-  let rows = state.events.map(ev => {
-    const type = ev['種別'] || '';
-    const editBtns = canEdit ? `
-      <button class="btn btn-outline btn-sm" onclick="openEventModal('${ev['イベントID']}')">編集</button>
-      <button class="btn btn-danger btn-sm" onclick="deleteEvent('${ev['イベントID']}')">削除</button>
-    ` : '';
-    return `<tr>
-      <td>${ev['日付'] || ''}</td>
-      <td><span class="tag tag-${type}">${type}</span></td>
-      <td>${ev['開始時刻'] || ''}〜${ev['終了時刻'] || ''}</td>
-      <td>${ev['講師'] || ''}</td>
-      <td>${ev['会場'] || (ev['オンライン'] === '是' ? 'オンライン' : '')}</td>
-      <td>${ev['受講料'] ? ev['受講料']+'円' : '無料'}</td>
-      <td>
-        <button class="btn btn-outline btn-sm" onclick="openAttendanceModal('${ev['イベントID']}')">👥 参加者</button>
-        ${editBtns}
-      </td>
-    </tr>`;
-  }).join('');
-
-  if (!rows) rows = '<tr><td colspan="7" class="empty">イベントがありません</td></tr>';
-
-  main.innerHTML = `
-    <div class="card">
-      <div class="cardHeader">
-        <h2>📋 イベント一覧 - ${month.getFullYear()}年${month.getMonth()+1}月</h2>
-        <div class="flex gap8">
-          <button class="btn btn-outline btn-sm" onclick="changeMonth2(-1)">◀ 前月</button>
-          <button class="btn btn-outline btn-sm" onclick="changeMonth2(1)">翌月 ▶</button>
-          ${addBtn}
-        </div>
-      </div>
-      <div class="cardBody">
-        <div class="tableWrap">
-          <table>
-            <thead><tr>
-              <th>日付</th><th>種別</th><th>時間</th><th>講師</th>
-              <th>会場</th><th>受講料</th><th>操作</th>
-            </tr></thead>
-            <tbody>${rows}</tbody>
-          </table>
-        </div>
-      </div>
+  let html = `
+    <div class="flex gap8" style="margin-bottom:12px;align-items:center">
+      <div style="font-size:16px;font-weight:700;flex:1">${month.getFullYear()}年${month.getMonth()+1}月</div>
+      <button class="btn btn-outline btn-sm" onclick="changeMonthEv(-1)">◀ 前月</button>
+      <button class="btn btn-outline btn-sm" onclick="changeMonthEv(1)">翌月 ▶</button>
     </div>`;
+
+  if (!state.events.length) {
+    html += `<div class="emptyState"><div class="emptyIcon">📭</div><p>イベントがありません</p></div>`;
+  } else {
+    state.events.forEach(ev => {
+      const type = ev['種別'] || 'BE';
+      const fee = ev['受講料'] ? ev['受講料']+'円' : '無料';
+      const venue = ev['オンライン']==='是' ? '🖥 オンライン' : (ev['会場'] ? '📍 '+ev['会場'] : '');
+      const editBtns = canEdit ? `
+        <button class="btn btn-outline btn-sm" onclick="openEventSheet('${ev['イベントID']}')">✏️ 編集</button>
+        <button class="btn btn-sm" style="background:var(--danger-light);color:var(--danger)" onclick="confirmDeleteEvent('${ev['イベントID']}')">🗑 削除</button>
+      ` : '';
+      html += `
+        <div class="eventCard eventCard-${type}">
+          <div class="eventCardBody" onclick="openAttSheet('${ev['イベントID']}')">
+            <div class="eventCardTop">
+              <div class="eventCardTitle">${ev['日付']||''} ${ev['開始時刻']||''}〜${ev['終了時刻']||''}</div>
+              <span class="tag tag-${type}">${type}</span>
+            </div>
+            <div style="font-size:15px;font-weight:600;margin-bottom:4px">${ev['講師']||''}</div>
+            <div class="eventCardMeta">
+              ${venue ? `<span>${venue}</span>` : ''}
+              <span>💴 ${fee}</span>
+              ${ev['申込締切'] ? `<span>⏰ ${String(ev['申込締切']).substring(0,16)}</span>` : ''}
+            </div>
+          </div>
+          ${(canEdit) ? `<div class="eventCardActions">
+            <button class="btn btn-outline btn-sm" onclick="openAttSheet('${ev['イベントID']}')">👥 参加者</button>
+            ${editBtns}
+          </div>` : `<div class="eventCardActions"><button class="btn btn-primary btn-sm" style="flex:1" onclick="openAttSheet('${ev['イベントID']}')">👥 参加者を確認</button></div>`}
+        </div>`;
+    });
+  }
+
+  document.getElementById('main').innerHTML = html;
+  if (canEdit) addFab('openEventSheet()');
 }
 
-function changeMonth2(delta) {
-  state.currentMonth = new Date(state.currentMonth.getFullYear(), state.currentMonth.getMonth() + delta, 1);
-  renderEventList();
-}
+function changeMonthEv(d) { state.currentMonth = new Date(state.currentMonth.getFullYear(), state.currentMonth.getMonth()+d, 1); renderEventList(); }
 
 // ============================================================
 // マイスケジュール
@@ -645,34 +1014,28 @@ function changeMonth2(delta) {
 async function renderMySchedule() {
   const res = await apiGet({ action: 'getMySchedule', memberId: state.member.id });
   const events = res.success ? res.data : [];
-  const main = document.getElementById('main');
+  let html = `<div style="font-size:16px;font-weight:700;margin-bottom:12px">${state.member.name} さんの参加予定</div>`;
 
-  let rows = events.map(ev => {
-    const type = ev['種別'] || '';
-    return `<tr>
-      <td>${ev['日付'] || ''}</td>
-      <td><span class="tag tag-${type}">${type}</span></td>
-      <td>${ev['開始時刻'] || ''}〜${ev['終了時刻'] || ''}</td>
-      <td>${ev['講師'] || ''}</td>
-      <td>${ev['会場'] || (ev['オンライン'] === '是' ? 'オンライン' : '')}</td>
-      <td>${ev['受講料'] ? ev['受講料']+'円' : '無料'}</td>
-    </tr>`;
-  }).join('');
-
-  if (!rows) rows = '<tr><td colspan="6" class="empty">参加予定のイベントがありません</td></tr>';
-
-  main.innerHTML = `
-    <div class="card">
-      <div class="cardHeader"><h2>🙋 マイスケジュール - ${state.member.name}</h2></div>
-      <div class="cardBody">
-        <div class="tableWrap">
-          <table>
-            <thead><tr><th>日付</th><th>種別</th><th>時間</th><th>講師</th><th>会場</th><th>受講料</th></tr></thead>
-            <tbody>${rows}</tbody>
-          </table>
-        </div>
-      </div>
-    </div>`;
+  if (!events.length) {
+    html += `<div class="emptyState"><div class="emptyIcon">🗓</div><p>参加予定のイベントがありません</p></div>`;
+  } else {
+    events.forEach(ev => {
+      const type = ev['種別'] || 'BE';
+      const venue = ev['オンライン']==='是' ? '🖥 オンライン' : (ev['会場'] ? '📍 '+ev['会場'] : '');
+      html += `
+        <div class="eventCard eventCard-${type}" onclick="openAttSheet('${ev['イベントID']}')">
+          <div class="eventCardBody">
+            <div class="eventCardTop">
+              <div class="eventCardTitle">${ev['日付']||''} ${ev['開始時刻']||''}〜${ev['終了時刻']||''}</div>
+              <span class="tag tag-${type}">${type}</span>
+            </div>
+            <div style="font-size:15px;font-weight:600;margin-bottom:4px">${ev['講師']||''}</div>
+            <div class="eventCardMeta">${venue ? `<span>${venue}</span>` : ''}</div>
+          </div>
+        </div>`;
+    });
+  }
+  document.getElementById('main').innerHTML = html;
 }
 
 // ============================================================
@@ -682,43 +1045,36 @@ async function renderMembers() {
   if (state.member.permission < 2) { showPage('calendar'); return; }
   const res = await apiGet({ action: 'getMembers' }, true);
   state.members = res.success ? res.data : [];
-  const main = document.getElementById('main');
   const isSuperAdmin = state.member.permission >= 3;
 
-  let rows = state.members.map(m => {
-    const perm = m['権限レベル'];
-    const editBtns = isSuperAdmin ? `
-      <button class="btn btn-outline btn-sm" onclick="openMemberModal('${m['メンバーID']}')">編集</button>
-    ` : '';
-    return `<tr>
-      <td><code style="font-size:12px">${m['メンバーID']}</code></td>
-      <td>${m['氏名']}</td>
-      <td>${m['グループ'] || '-'}</td>
-      <td><span class="tag tag-perm${perm}">${PERM_LABELS[perm] || perm}</span></td>
-      <td><span class="tag ${m['状態']==='有効'?'tag-attend':'tag-absent'}">${m['状態']}</span></td>
-      <td>${editBtns}</td>
-    </tr>`;
-  }).join('');
+  let html = `<div style="font-size:16px;font-weight:700;margin-bottom:12px">メンバー ${state.members.length}名</div>`;
+  html += '<div class="card"><div>';
 
-  if (!rows) rows = '<tr><td colspan="6" class="empty">メンバーがいません</td></tr>';
+  if (!state.members.length) {
+    html += '<div class="emptyState"><div class="emptyIcon">👥</div><p>メンバーがいません</p></div>';
+  } else {
+    state.members.forEach(m => {
+      const perm = m['権限レベル'];
+      const initials = (m['氏名']||'?').slice(0,1);
+      html += `
+        <div class="memberCard" onclick="${isSuperAdmin ? `openMemberSheet('${m['メンバーID']}')` : ''}">
+          <div class="memberAvatar">${initials}</div>
+          <div class="memberInfo">
+            <div class="memberName">${m['氏名']}</div>
+            <div class="memberSub">${m['メンバーID']} · ${m['グループ']||'グループなし'}</div>
+            <div style="margin-top:3px">
+              <span class="tag tag-perm${perm}" style="font-size:10px">${PERM_LABELS[perm]||perm}</span>
+              <span class="tag ${m['状態']==='有効'?'tag-attend':'tag-absent'}" style="font-size:10px;margin-left:4px">${m['状態']}</span>
+            </div>
+          </div>
+          ${isSuperAdmin ? '<div class="memberChevron">›</div>' : ''}
+        </div>`;
+    });
+  }
 
-  const addBtn = isSuperAdmin ? '<button class="btn btn-primary" onclick="openMemberModal()">＋ メンバー追加</button>' : '';
-
-  main.innerHTML = `
-    <div class="card">
-      <div class="cardHeader">
-        <h2>👥 メンバー管理（${state.members.length}名）</h2>
-        ${addBtn}
-      </div>
-      <div class="cardBody">
-        <div class="tableWrap">
-          <table>
-            <thead><tr><th>メンバーID</th><th>氏名</th><th>グループ</th><th>権限</th><th>状態</th><th>操作</th></tr></thead>
-            <tbody>${rows}</tbody>
-          </table>
-        </div>
-      </div>
-    </div>`;
+  html += '</div></div>';
+  document.getElementById('main').innerHTML = html;
+  if (isSuperAdmin) addFab('openMemberSheet()');
 }
 
 // ============================================================
@@ -728,45 +1084,46 @@ async function renderConfig() {
   if (state.member.permission < 3) { showPage('calendar'); return; }
   const res = await apiGet({ action: 'getConfig' });
   const config = res.success ? res.data : {};
-  const main = document.getElementById('main');
   const keys = Object.keys(config);
-  let rows = keys.map(k => `
-    <tr>
-      <td>${k}</td>
-      <td><input type="text" id="cfg_${k}" value="${config[k]}" style="max-width:300px"></td>
-    </tr>`).join('');
 
-  main.innerHTML = `
-    <div class="card">
-      <div class="cardHeader"><h2>⚙️ システム設定</h2></div>
-      <div class="cardBody">
-        <div class="tableWrap">
-          <table><thead><tr><th>キー</th><th>値</th></tr></thead>
-          <tbody>${rows}</tbody></table>
-        </div>
-        <div class="mt20">
-          <button class="btn btn-primary" onclick="saveConfig(${JSON.stringify(keys)})">💾 設定を保存</button>
-        </div>
-      </div>
-    </div>`;
+  let html = '<div class="card"><div class="cardHeader"><h2>⚙️ システム設定</h2></div><div class="cardBody"><div class="formStack">';
+  keys.forEach(k => {
+    html += `<div class="formGroup"><label>${k}</label><input type="text" id="cfg_${CSS.escape(k)}" value="${config[k]}"></div>`;
+  });
+  html += `</div></div><div style="padding:12px 16px;border-top:1px solid var(--border)">
+    <button class="btn btn-primary btn-full" onclick="saveConfig(${JSON.stringify(keys)})">💾 設定を保存</button>
+  </div></div>`;
+  document.getElementById('main').innerHTML = html;
 }
 
 async function saveConfig(keys) {
   const cfg = {};
-  keys.forEach(k => { cfg[k] = document.getElementById('cfg_' + k).value; });
+  keys.forEach(k => { const el = document.getElementById('cfg_'+CSS.escape(k)); if(el) cfg[k] = el.value; });
   const res = await apiPost({ action: 'updateConfig', config: cfg });
-  if (res.success) alert('設定を保存しました');
-  else alert('エラー: ' + res.error);
+  showToast(res.success ? '設定を保存しました ✓' : 'エラー: '+res.error, res.success ? 'success' : 'error');
 }
 
 // ============================================================
-// イベントモーダル
+// FAB（フローティングボタン）
 // ============================================================
-function openEventModal(eventId) {
+function addFab(onclickFn) {
+  const existing = document.querySelector('.fab');
+  if (existing) existing.remove();
+  const fab = document.createElement('button');
+  fab.className = 'fab';
+  fab.textContent = '＋';
+  fab.setAttribute('onclick', onclickFn);
+  document.getElementById('app').appendChild(fab);
+}
+
+// ============================================================
+// イベントシート
+// ============================================================
+function openEventSheet(eventId) {
   state.editingEventId = eventId || null;
-  document.getElementById('eventModalTitle').textContent = eventId ? 'イベント編集' : 'イベント追加';
+  document.getElementById('eventSheetTitle').textContent = eventId ? 'イベント編集' : 'イベント追加';
   const fields = ['date','type','start','end','organizer','lecturer','venue','address','fee','capacity','deadline','online','zoomId','zoomPc','note'];
-  fields.forEach(f => { const el = document.getElementById('ev_' + f); if (el) el.value = ''; });
+  fields.forEach(f => { const el = document.getElementById('ev_'+f); if(el) el.value = ''; });
 
   if (eventId) {
     const ev = state.events.find(e => e['イベントID'] === eventId);
@@ -774,20 +1131,20 @@ function openEventModal(eventId) {
       document.getElementById('ev_date').value = String(ev['日付']).substring(0,10);
       document.getElementById('ev_type').value = ev['種別'] || 'BE';
       document.getElementById('ev_start').value = ev['開始時刻'] || '';
-      document.getElementById('ev_end').value = ev['終了時刻'] || '';
+      document.getElementById('ev_end').value   = ev['終了時刻'] || '';
       document.getElementById('ev_organizer').value = ev['主催'] || '全厚済';
-      document.getElementById('ev_lecturer').value = ev['講師'] || '';
-      document.getElementById('ev_venue').value = ev['会場'] || '';
-      document.getElementById('ev_address').value = ev['会場住所'] || '';
-      document.getElementById('ev_fee').value = ev['受講料'] || '';
+      document.getElementById('ev_lecturer').value  = ev['講師'] || '';
+      document.getElementById('ev_venue').value    = ev['会場'] || '';
+      document.getElementById('ev_address').value  = ev['会場住所'] || '';
+      document.getElementById('ev_fee').value      = ev['受講料'] || '';
       document.getElementById('ev_capacity').value = ev['定員'] || '';
-      document.getElementById('ev_online').value = ev['オンライン'] || '否';
-      document.getElementById('ev_zoomId').value = ev['ZoomID'] || '';
-      document.getElementById('ev_zoomPc').value = ev['パスコード'] || '';
-      document.getElementById('ev_note').value = ev['備考'] || '';
+      document.getElementById('ev_online').value   = ev['オンライン'] || '否';
+      document.getElementById('ev_zoomId').value   = ev['ZoomID'] || '';
+      document.getElementById('ev_zoomPc').value   = ev['パスコード'] || '';
+      document.getElementById('ev_note').value     = ev['備考'] || '';
     }
   }
-  openModal('eventModal');
+  openSheet('eventSheet');
 }
 
 async function saveEvent() {
@@ -809,43 +1166,40 @@ async function saveEvent() {
     'パスコード': document.getElementById('ev_zoomPc').value,
     '備考': document.getElementById('ev_note').value,
   };
-  if (!params['日付'] || !params['講師']) return alert('日付・講師は必須です');
+  if (!params['日付'] || !params['講師']) { showToast('日付・講師は必須です', 'error'); return; }
   const res = await apiPost(params);
-  if (res.success) { closeModal('eventModal'); showPage(state.currentPage); }
-  else alert('エラー: ' + res.error);
+  if (res.success) { closeSheet('eventSheet'); showPage(state.currentPage); showToast('保存しました ✓'); }
+  else showToast('エラー: '+res.error, 'error');
 }
 
-async function deleteEvent(eventId) {
-  if (!confirm('このイベントを削除しますか？参加者データも削除されます。')) return;
-  const res = await apiPost({ action: 'deleteEvent', eventId });
-  if (res.success) showPage(state.currentPage);
-  else alert('エラー: ' + res.error);
+function confirmDeleteEvent(eventId) {
+  showConfirm('このイベントを削除しますか？\n参加者データも削除されます。', async () => {
+    const res = await apiPost({ action: 'deleteEvent', eventId });
+    if (res.success) { showPage(state.currentPage); showToast('削除しました'); }
+    else showToast('エラー: '+res.error, 'error');
+  });
 }
 
 // ============================================================
-// 参加者モーダル
+// 参加者シート
 // ============================================================
-async function openAttendanceModal(eventId) {
-  state.currentAttendanceEventId = eventId;
+async function openAttSheet(eventId) {
+  state.currentAttEventId = eventId;
   const ev = state.events.find(e => e['イベントID'] === eventId) || {};
   const type = ev['種別'] || '';
-  document.getElementById('attModalTitle').textContent = `参加者管理 - ${ev['日付'] || ''} ${type} ${ev['講師'] || ''}`;
+  document.getElementById('attSheetTitle').textContent = `${ev['日付']||''} ${type} 参加者`;
+  const fee = ev['受講料'] ? ev['受講料']+'円' : '無料';
   document.getElementById('attEventInfo').textContent =
-    `${ev['開始時刻'] || ''}〜${ev['終了時刻'] || ''}　${ev['会場'] || ''}　受講料：${ev['受講料'] ? ev['受講料']+'円' : '無料'}`;
+    `${ev['開始時刻']||''}〜${ev['終了時刻']||''}　${ev['会場']||(ev['オンライン']==='是'?'オンライン':'')}　${fee}`;
 
-  // スタッフ以上のみメンバー追加
-  document.querySelectorAll('.staff-only').forEach(el => {
-    el.style.display = state.member.permission >= 1 ? '' : 'none';
-  });
+  // BEのみ全員がゲスト追加可
+  const guestBtn = document.getElementById('guestBtn');
+  if (guestBtn) guestBtn.style.display = (type === 'BE' || state.member.permission >= 1) ? '' : 'none';
 
-  // BEのみゲスト追加（全員可）は表示、他はスタッフ以上
-  const guestBtn = document.querySelector('[onclick="openGuestAdd()"]');
-  if (guestBtn) {
-    guestBtn.style.display = (type === 'BE' || state.member.permission >= 1) ? '' : 'none';
-  }
-
+  document.getElementById('guestAddRow').classList.add('hidden');
+  document.getElementById('memberSelectRow').classList.add('hidden');
   await loadAttendance(eventId);
-  openModal('attendanceModal');
+  openSheet('attendanceSheet');
 }
 
 async function loadAttendance(eventId) {
@@ -853,129 +1207,104 @@ async function loadAttendance(eventId) {
   const list = res.success ? res.data : [];
   const listEl = document.getElementById('attendanceList');
   const countEl = document.getElementById('attCount');
-
   const attending = list.filter(a => a['参加状態'] === '参加');
-  countEl.textContent = `参加: ${attending.length}名 / 全${list.length}名`;
+  countEl.textContent = `参加 ${attending.length}名 / 計 ${list.length}名`;
 
   if (!list.length) {
-    listEl.innerHTML = '<div class="empty">参加者がいません</div>';
+    listEl.innerHTML = '<div class="emptyState" style="padding:24px"><div class="emptyIcon">👤</div><p>参加者がいません</p></div>';
     return;
   }
 
-  const STATUS_OPTIONS = ['参加', '不参加', 'キャンセル待ち'];
+  const OPTS = ['参加','不参加','キャンセル待ち'];
   listEl.innerHTML = list.map((a, i) => {
     const isGuest = String(a['メンバーID']).startsWith('GUEST_');
     const canChange = state.member.permission >= 1 || String(a['メンバーID']) === String(state.member.id);
-    const statusSel = canChange
-      ? `<select onchange="changeAttStatus('${a['イベントID']}','${a['メンバーID']}',this.value)" style="font-size:12px;padding:3px 6px">
-          ${STATUS_OPTIONS.map(s => `<option ${s===a['参加状態']?'selected':''}>${s}</option>`).join('')}
+    const statusEl = canChange
+      ? `<select class="attendStatus" onchange="changeAttStatus('${a['イベントID']}','${a['メンバーID']}',this.value)" style="height:36px;font-size:13px;padding:0 28px 0 10px;border-radius:20px">
+          ${OPTS.map(s => `<option${s===a['参加状態']?' selected':''}>${s}</option>`).join('')}
         </select>`
       : `<span class="tag tag-${a['参加状態']==='参加'?'attend':a['参加状態']==='不参加'?'absent':'pending'}">${a['参加状態']}</span>`;
-
-    return `<div class="attendRow">
-      <div>
-        <span style="font-weight:500">${i+1}. ${a['氏名']}</span>
-        ${isGuest ? '<span class="tag tag-guest" style="margin-left:6px">新規/非会員</span>' : ''}
+    return `<div class="attendItem">
+      <div class="attendNum">${i+1}</div>
+      <div class="attendName">
+        ${a['氏名']}
+        ${isGuest ? '<span class="tag tag-guest" style="margin-left:6px;font-size:10px">新規</span>' : ''}
       </div>
-      <div class="flex gap8 align-center">${statusSel}</div>
+      ${statusEl}
     </div>`;
   }).join('');
 }
 
-async function changeAttStatus(eventId, memberId, status) {
-  const res = await apiPost({ action: 'updateAttendance', eventId, memberId, status });
-  if (!res.success) { alert('エラー: ' + res.error); loadAttendance(eventId); }
-  else {
-    const countEl = document.getElementById('attCount');
-    // 再ロード
-    await loadAttendance(eventId);
-  }
+async function changeAttStatus(evId, memId, status) {
+  const res = await apiPost({ action: 'updateAttendance', eventId: evId, memberId: memId, status });
+  if (!res.success) { showToast('エラー: '+res.error, 'error'); await loadAttendance(evId); }
+  else await loadAttendance(evId);
 }
 
-function openGuestAdd() { document.getElementById('guestAddRow').classList.remove('hidden'); }
+function openGuestAdd() { document.getElementById('guestAddRow').classList.remove('hidden'); document.getElementById('guestNameInput').focus(); }
 function closeGuestAdd() { document.getElementById('guestAddRow').classList.add('hidden'); }
 async function submitGuest() {
   const name = document.getElementById('guestNameInput').value.trim();
-  if (!name) return alert('氏名を入力してください');
-  const res = await apiPost({ action: 'addGuest', eventId: state.currentAttendanceEventId, guestName: name });
-  if (res.success) { closeGuestAdd(); document.getElementById('guestNameInput').value = ''; await loadAttendance(state.currentAttendanceEventId); }
-  else alert('エラー: ' + res.error);
+  if (!name) { showToast('氏名を入力してください', 'error'); return; }
+  const res = await apiPost({ action: 'addGuest', eventId: state.currentAttEventId, guestName: name });
+  if (res.success) { closeGuestAdd(); document.getElementById('guestNameInput').value = ''; await loadAttendance(state.currentAttEventId); showToast('追加しました ✓'); }
+  else showToast('エラー: '+res.error, 'error');
 }
 
 function openMemberAdd() {
   const sel = document.getElementById('memberSelectInput');
-  sel.innerHTML = '<option value="">メンバーを選択...</option>';
-  state.members.forEach(m => {
-    sel.innerHTML += `<option value="${m['メンバーID']}">${m['氏名']}</option>`;
-  });
+  sel.innerHTML = '<option value="">選択...</option>';
+  state.members.forEach(m => { sel.innerHTML += `<option value="${m['メンバーID']}">${m['氏名']}</option>`; });
   document.getElementById('memberSelectRow').classList.remove('hidden');
 }
 function closeMemberAdd() { document.getElementById('memberSelectRow').classList.add('hidden'); }
 async function submitMemberAttend() {
   const memberId = document.getElementById('memberSelectInput').value;
-  if (!memberId) return alert('メンバーを選択してください');
-  const res = await apiPost({ action: 'updateAttendance', eventId: state.currentAttendanceEventId, memberId, status: '参加' });
-  if (res.success) { closeMemberAdd(); await loadAttendance(state.currentAttendanceEventId); }
-  else alert('エラー: ' + res.error);
+  if (!memberId) { showToast('メンバーを選択してください', 'error'); return; }
+  const res = await apiPost({ action: 'updateAttendance', eventId: state.currentAttEventId, memberId, status: '参加' });
+  if (res.success) { closeMemberAdd(); await loadAttendance(state.currentAttEventId); showToast('追加しました ✓'); }
+  else showToast('エラー: '+res.error, 'error');
 }
 
 // ============================================================
-// メンバーモーダル
+// メンバーシート
 // ============================================================
-function openMemberModal(memberId) {
+function openMemberSheet(memberId) {
   state.editingMemberId = memberId || null;
-  document.getElementById('memberModalTitle').textContent = memberId ? 'メンバー編集' : 'メンバー追加';
-  // フィールド初期化
+  document.getElementById('memberSheetTitle').textContent = memberId ? 'メンバー編集' : 'メンバー追加';
   ['name','kana','group','pw'].forEach(f => { document.getElementById('mem_'+f).value = ''; });
   document.getElementById('mem_perm').value = '0';
   document.getElementById('mem_status').value = '有効';
   document.getElementById('mem_id_display').value = '';
-  document.getElementById('mem_id_locked_badge').style.display = 'none';
-  // PW表示リセット
-  const pwEl = document.getElementById('mem_pw');
-  pwEl.type = 'password';
-  document.getElementById('mem_pw_toggle').textContent = '👁';
-  document.getElementById('mem_pw_preview').style.display = 'none';
+  document.getElementById('mem_id_changed').classList.add('hidden');
+  // PW非表示リセット
+  document.getElementById('mem_pw').type = 'password';
 
   if (memberId) {
     const m = state.members.find(m => m['メンバーID'] === memberId);
     if (m) {
       document.getElementById('mem_id_display').value = m['メンバーID'] || '';
-      document.getElementById('mem_name').value = m['氏名'] || '';
-      document.getElementById('mem_kana').value = m['ふりがな'] || '';
-      document.getElementById('mem_group').value = m['グループ'] || '';
-      document.getElementById('mem_perm').value = m['権限レベル'] || 0;
-      document.getElementById('mem_status').value = m['状態'] || '有効';
+      document.getElementById('mem_name').value    = m['氏名'] || '';
+      document.getElementById('mem_kana').value    = m['ふりがな'] || '';
+      document.getElementById('mem_group').value   = m['グループ'] || '';
+      document.getElementById('mem_perm').value    = String(m['権限レベル'] || 0);
+      document.getElementById('mem_status').value  = m['状態'] || '有効';
+
       // ID変更検知
-      document.getElementById('mem_id_display').addEventListener('input', function() {
-        const changed = this.value.trim() !== (m['メンバーID'] || '');
-        document.getElementById('mem_id_locked_badge').style.display = changed ? '' : 'none';
-      }, { once: false });
+      const origId = m['メンバーID'];
+      document.getElementById('mem_id_display').oninput = function() {
+        document.getElementById('mem_id_changed').classList.toggle('hidden', this.value.trim() === origId);
+      };
     }
   } else {
-    document.getElementById('mem_id_display').placeholder = '自動生成（任意で指定可）';
+    document.getElementById('mem_id_display').oninput = null;
   }
-  openModal('memberModal');
+  openSheet('memberSheet');
 }
 
-// PW表示トグル
-function togglePwVisibility() {
-  const pwEl = document.getElementById('mem_pw');
-  const btn = document.getElementById('mem_pw_toggle');
-  const preview = document.getElementById('mem_pw_preview');
-  if (pwEl.type === 'password') {
-    pwEl.type = 'text';
-    btn.textContent = '🙈';
-    // 入力値をプレビューに表示（値が空の場合は非表示）
-    if (pwEl.value) {
-      preview.textContent = '入力中: ' + pwEl.value;
-      preview.style.display = 'block';
-    }
-  } else {
-    pwEl.type = 'password';
-    btn.textContent = '👁';
-    preview.style.display = 'none';
-  }
+function toggleMemPw() {
+  const el = document.getElementById('mem_pw');
+  el.type = el.type === 'password' ? 'text' : 'password';
 }
 
 async function saveMember() {
@@ -985,9 +1314,9 @@ async function saveMember() {
 
   const params = {
     action: isEdit ? 'updateMember' : 'addMember',
-    memberId: state.editingMemberId,                        // 現在のID（編集時）
-    newMemberId: isEdit && inputId !== state.editingMemberId ? inputId : undefined,  // 変更後ID
-    customMemberId: !isEdit && inputId ? inputId : undefined,  // 新規時カスタムID
+    memberId: state.editingMemberId,
+    newMemberId: isEdit && inputId !== state.editingMemberId ? inputId : undefined,
+    customMemberId: !isEdit && inputId ? inputId : undefined,
     '氏名': document.getElementById('mem_name').value,
     'ふりがな': document.getElementById('mem_kana').value,
     'グループ': document.getElementById('mem_group').value,
@@ -996,62 +1325,125 @@ async function saveMember() {
     password: pw || undefined,
     '状態': document.getElementById('mem_status').value,
   };
-  if (!params['氏名']) return alert('氏名は必須です');
-  if (isEdit && params.newMemberId && !confirm(`メンバーIDを変更します。\n${state.editingMemberId} → ${params.newMemberId}\n\n参加履歴のIDも自動更新されます。続けますか？`)) return;
+  if (!params['氏名']) { showToast('氏名は必須です', 'error'); return; }
 
+  if (isEdit && params.newMemberId) {
+    showConfirm(`メンバーIDを変更します。\n${state.editingMemberId} → ${params.newMemberId}\n\n参加履歴のIDも自動更新されます。続けますか？`, async () => {
+      await _doSaveMember(params, isEdit, pw);
+    });
+    return;
+  }
+  await _doSaveMember(params, isEdit, pw);
+}
+
+async function _doSaveMember(params, isEdit, pw) {
   const res = await apiPost(params);
   if (res.success) {
-    closeModal('memberModal');
-    if (!isEdit) {
-      const newId = res.memberId;
-      alert(`メンバーを追加しました\nメンバーID: ${newId}\n初期PW: ${pw || newId}`);
-    } else if (params.newMemberId) {
-      // ローカルのセッション情報も更新（自分のIDを変更した場合）
-      if (String(state.member.id) === String(state.editingMemberId)) {
-        state.member.id = res.newMemberId;
-        localStorage.setItem('smMember', JSON.stringify(state.member));
-        alert('メンバーIDを変更しました。再ログインを推奨します。');
-      }
-    }
+    closeSheet('memberSheet');
+    if (!isEdit) showToast(`追加しました\nID: ${res.memberId}\n初期PW: ${pw || res.memberId}`);
+    else if (params.newMemberId && String(state.member.id) === String(state.editingMemberId)) {
+      state.member.id = res.newMemberId;
+      localStorage.setItem('smMember', JSON.stringify(state.member));
+      showToast('IDを変更しました。再ログインを推奨します。');
+    } else showToast('保存しました ✓');
     renderMembers();
-  } else alert('エラー: ' + res.error);
+  } else showToast('エラー: '+res.error, 'error');
 }
 
 // ============================================================
-// モーダル制御
+// シート制御
 // ============================================================
-function openModal(id) { document.getElementById(id).classList.add('open'); }
-function closeModal(id) { document.getElementById(id).classList.remove('open'); }
-document.querySelectorAll('.overlay').forEach(el => {
-  el.addEventListener('click', e => { if (e.target === el) el.classList.remove('open'); });
+function openSheet(id) {
+  const el = document.getElementById(id);
+  el.classList.add('open');
+  document.body.style.overflow = 'hidden';
+  // スワイプで閉じる（シートのハンドル部分）
+  const sheet = el.querySelector('.sheet');
+  let startY = 0;
+  sheet.ontouchstart = e => { startY = e.touches[0].clientY; };
+  sheet.ontouchmove = e => {
+    const dy = e.touches[0].clientY - startY;
+    if (dy > 0) sheet.style.transform = `translateY(${dy}px)`;
+  };
+  sheet.ontouchend = e => {
+    const dy = e.changedTouches[0].clientY - startY;
+    if (dy > 80) { closeSheet(id); }
+    sheet.style.transform = '';
+  };
+}
+function closeSheet(id) {
+  document.getElementById(id).classList.remove('open');
+  document.body.style.overflow = '';
+}
+
+// overlay tap to close
+document.querySelectorAll('.sheet-overlay').forEach(el => {
+  el.addEventListener('click', e => { if (e.target === el) closeSheet(el.id); });
 });
 
 // ============================================================
-// API通信
+// 確認ダイアログ
+// ============================================================
+function showConfirm(message, onOk) {
+  document.getElementById('confirmMessage').textContent = message;
+  const btn = document.getElementById('confirmOk');
+  btn.onclick = () => { closeSheet('confirmSheet'); onOk(); };
+  openSheet('confirmSheet');
+}
+
+// ============================================================
+// トースト通知
+// ============================================================
+function showToast(message, type='success') {
+  const existing = document.getElementById('toast');
+  if (existing) existing.remove();
+  const toast = document.createElement('div');
+  toast.id = 'toast';
+  Object.assign(toast.style, {
+    position: 'fixed', bottom: `calc(80px + ${getComputedStyle(document.documentElement).getPropertyValue('--safe-bottom') || '0px'})`,
+    left: '50%', transform: 'translateX(-50%)',
+    background: type === 'error' ? '#d93025' : type === 'warning' ? '#f29900' : '#188038',
+    color: '#fff', padding: '12px 20px', borderRadius: '24px',
+    fontSize: '14px', fontWeight: '600', zIndex: '9999',
+    boxShadow: '0 4px 12px rgba(0,0,0,.2)', whiteSpace: 'pre-line',
+    textAlign: 'center', maxWidth: '80vw',
+    animation: 'fadeInUp .2s ease',
+  });
+  toast.textContent = message;
+  document.body.appendChild(toast);
+  setTimeout(() => toast.remove(), 3000);
+}
+
+// ============================================================
+// API
 // ============================================================
 async function apiGet(params) {
   const qs = new URLSearchParams(params).toString();
   try {
     const res = await fetch(`${GAS_URL}?${qs}`);
     return await res.json();
-  } catch (e) { return { success: false, error: 'ネットワークエラー: ' + e.message }; }
+  } catch (e) { return { success: false, error: 'ネットワークエラー: '+e.message }; }
 }
 
 async function apiPost(params) {
   if (state.token) params.token = state.token;
   try {
-    const res = await fetch(GAS_URL, {
-      method: 'POST',
-      body: JSON.stringify(params)
-    });
+    const res = await fetch(GAS_URL, { method: 'POST', body: JSON.stringify(params) });
     return await res.json();
-  } catch (e) { return { success: false, error: 'ネットワークエラー: ' + e.message }; }
+  } catch (e) { return { success: false, error: 'ネットワークエラー: '+e.message }; }
 }
+
+// ============================================================
+// アニメーション
+// ============================================================
+const style = document.createElement('style');
+style.textContent = `@keyframes fadeInUp { from { opacity:0; transform:translateX(-50%) translateY(12px); } to { opacity:1; transform:translateX(-50%) translateY(0); } }`;
+document.head.appendChild(style);
 
 // ============================================================
 // 起動
 // ============================================================
-window.addEventListener('keydown', e => { if (e.key === 'Enter' && document.getElementById('loginScreen').style.display !== 'none') doLogin(); });
+document.getElementById('loginPw').addEventListener('keydown', e => { if (e.key === 'Enter') doLogin(); });
 initApp();
 </script>
 </body>
