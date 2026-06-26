@@ -353,6 +353,7 @@ select { background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.o
 .attendNum { font-size: 11px; color: var(--text-muted); }
 .attendName { font-size: 14px; font-weight: 600; width: 100%; word-break: break-all; line-height: 1.4; }
 .attendBtns { display: flex; gap: 6px; width: 100%; }
+.attendItem.dirty { border-color: var(--warning); background: #fffdf0; }
 .attendBtn {
   flex: 1; height: 34px; border-radius: 20px;
   border: 1.5px solid var(--border); background: var(--surface);
@@ -711,10 +712,15 @@ select { background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.o
 
       <div id="attendanceList" class="attendList"></div>
     </div>
-    <div class="sheetFooter">
-      <span id="attCount" style="color:var(--text-muted);font-size:13px;align-self:center;margin-right:auto"></span>
-      <button class="btn btn-outline btn-sm staff-only" onclick="openGuestAdd()" id="guestBtn">＋ 新規</button>
-      <button class="btn btn-outline btn-sm staff-only" onclick="openMemberAdd()">＋ メンバー</button>
+    <div class="sheetFooter" style="flex-direction:column;gap:10px">
+      <div class="flex gap8" style="width:100%;align-items:center">
+        <span id="attCount" style="color:var(--text-muted);font-size:13px;flex:1"></span>
+        <button class="btn btn-outline btn-sm staff-only" onclick="openGuestAdd()" id="guestBtn">＋ 新規</button>
+        <button class="btn btn-outline btn-sm staff-only" onclick="openMemberAdd()">＋ メンバー</button>
+      </div>
+      <button class="btn btn-primary btn-full" id="attSaveBtn" onclick="saveAttendance()" style="display:none">
+        💾 変更を保存
+      </button>
     </div>
   </div>
 </div>
@@ -1281,12 +1287,26 @@ async function openAttSheet(eventId) {
   openSheet('attendanceSheet');
 }
 
+// 参加状態の一時編集バッファ { memId: status }
+let attDraft = {};
+
 async function loadAttendance(eventId) {
+  attDraft = {}; // バッファをリセット
+  document.getElementById('attSaveBtn').style.display = 'none';
+
   const res = await apiGet({ action: 'getAttendance', eventId });
   const list = res.success ? res.data : [];
-  const listEl = document.getElementById('attendanceList');
+  state._attList = list; // 元データ保持
+  renderAttendanceList(list);
+}
+
+function renderAttendanceList(list) {
+  const listEl  = document.getElementById('attendanceList');
   const countEl = document.getElementById('attCount');
-  const attending = list.filter(a => a['参加状態'] === '参加');
+  const attending = list.filter(a => {
+    const cur = attDraft[a['メンバーID']] ?? a['参加状態'];
+    return cur === '参加';
+  });
   countEl.textContent = `参加 ${attending.length}名 / 計 ${list.length}名`;
 
   if (!list.length) {
@@ -1298,28 +1318,76 @@ async function loadAttendance(eventId) {
     { key: '参加',   cls: 'active-attend', label: '⭕ 参加' },
     { key: '不参加', cls: 'active-absent', label: '❌ 不参加' },
   ];
+
   listEl.innerHTML = list.map((a, i) => {
-    const isGuest = String(a['メンバーID']).startsWith('GUEST_');
+    const isGuest  = String(a['メンバーID']).startsWith('GUEST_');
     const canChange = state.member.permission >= 1 || String(a['メンバーID']) === String(state.member.id);
-    const evId  = a['イベントID'];
     const memId = a['メンバーID'];
-    const cur   = a['参加状態'];
+    const evId  = a['イベントID'];
+    // バッファ優先で現在値を取得
+    const cur   = attDraft[memId] ?? a['参加状態'];
+    const isDirty = attDraft[memId] !== undefined && attDraft[memId] !== a['参加状態'];
+
     const btns = canChange
       ? STATUSES.map(s => `<button class="attendBtn${cur===s.key?' '+s.cls:''}"
-          onclick="changeAttStatus('${evId}','${memId}','${s.key}')">${s.label}</button>`).join('')
+          onclick="draftAttStatus('${evId}','${memId}','${s.key}')">${s.label}</button>`).join('')
       : `<span class="tag tag-${cur==='参加'?'attend':'absent'}" style="width:100%;justify-content:center">${cur}</span>`;
-    return `<div class="attendItem">
+
+    return `<div class="attendItem${isDirty?' dirty':''}">
       <div class="attendNum">${i+1}</div>
-      <div class="attendName">${a['氏名']}${isGuest ? '<br><span class="tag tag-guest" style="font-size:10px;margin-top:2px">新規</span>' : ''}</div>
+      <div class="attendName">
+        ${a['氏名']}${isGuest ? '<br><span class="tag tag-guest" style="font-size:10px;margin-top:2px">新規</span>' : ''}
+        ${isDirty ? '<span style="font-size:10px;color:var(--warning);font-weight:700;display:block">未保存</span>' : ''}
+      </div>
       <div class="attendBtns">${btns}</div>
     </div>`;
   }).join('');
 }
 
-async function changeAttStatus(evId, memId, status) {
-  const res = await apiPost({ action: 'updateAttendance', eventId: evId, memberId: memId, status });
-  if (!res.success) { showToast('エラー: '+res.error, 'error'); await loadAttendance(evId); }
-  else await loadAttendance(evId);
+// ボタンタップ時はバッファに記録するだけ
+function draftAttStatus(evId, memId, status) {
+  attDraft[memId] = status;
+  renderAttendanceList(state._attList);
+  // 変更があれば保存ボタンを表示
+  const hasChanges = state._attList.some(a => attDraft[a['メンバーID']] !== undefined && attDraft[a['メンバーID']] !== a['参加状態']);
+  document.getElementById('attSaveBtn').style.display = hasChanges ? '' : 'none';
+}
+
+// 保存ボタン：変更分だけまとめてAPI送信
+async function saveAttendance() {
+  const btn = document.getElementById('attSaveBtn');
+  btn.textContent = '保存中…';
+  btn.disabled = true;
+
+  const targets = (state._attList || []).filter(a =>
+    attDraft[a['メンバーID']] !== undefined && attDraft[a['メンバーID']] !== a['参加状態']
+  );
+
+  let errors = [];
+  for (const a of targets) {
+    const res = await apiPost({
+      action: 'updateAttendance',
+      eventId: a['イベントID'],
+      memberId: a['メンバーID'],
+      status: attDraft[a['メンバーID']]
+    });
+    if (!res.success) errors.push(a['氏名'] + ': ' + res.error);
+  }
+
+  if (errors.length) {
+    showToast('一部エラー:\n' + errors.join('\n'), 'error');
+  } else {
+    showToast(`${targets.length}件 保存しました ✓`);
+  }
+
+  // 保存後：バッファクリア・再ロード・カード更新
+  attDraft = {};
+  btn.textContent = '💾 変更を保存';
+  btn.disabled = false;
+  btn.style.display = 'none';
+  await loadAttendance(state.currentAttEventId);
+  // イベントカードの参加者チップを更新
+  loadAttInline(state.currentAttEventId);
 }
 
 function openGuestAdd() { document.getElementById('guestAddRow').classList.remove('hidden'); document.getElementById('guestNameInput').focus(); }
