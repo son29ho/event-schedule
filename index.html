@@ -406,18 +406,6 @@ select { background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.o
 .memberSub { font-size: 12px; color: var(--text-muted); margin-top: 1px; }
 .memberChevron { color: var(--border); font-size: 18px; }
 
-/* ===== カレンダーアクションメニュー ===== */
-.calActionBtn {
-  display: flex; align-items: center; gap: 14px;
-  width: 100%; padding: 0 20px; height: 56px;
-  background: none; border: none; cursor: pointer;
-  font-size: 15px; font-family: inherit; text-align: left;
-  color: var(--text);
-}
-.calActionBtn:active { background: var(--bg); }
-.calActionBtn.calActionDanger { color: var(--danger); }
-.calActionIcon { font-size: 20px; width: 28px; text-align: center; flex-shrink: 0; }
-.calActionChev { margin-left: auto; color: var(--border); font-size: 20px; }
 
 /* ===== BOTTOM SHEET（シートモーダル） ===== */
 .sheet-overlay {
@@ -822,39 +810,20 @@ select { background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.o
   </div>
 </div>
 
-<!-- ===== カレンダーイベントアクションメニュー ===== -->
-<div class="sheet-overlay" id="calActionSheet">
-  <div class="sheet" style="max-height:auto">
+<!-- ===== カレンダーイベント確認シート ===== -->
+<div class="sheet-overlay" id="calInfoSheet">
+  <div class="sheet">
     <div class="sheetHandle"></div>
+    <div class="sheetHeader">
+      <h3 id="calInfoTitle">イベント情報</h3>
+      <button class="btn-icon" onclick="closeSheet('calInfoSheet')">✕</button>
+    </div>
     <div class="sheetBody" style="padding:0">
-      <!-- イベント情報ヘッダー -->
-      <div id="calActionHeader" style="padding:16px 20px 14px;border-bottom:1px solid var(--border)">
-        <div id="calActionTitle" style="font-size:16px;font-weight:700;margin-bottom:2px"></div>
-        <div id="calActionSub" style="font-size:13px;color:var(--text-muted)"></div>
-      </div>
-      <!-- アクションボタン -->
-      <div style="padding:8px 0 8px">
-        <button class="calActionBtn" onclick="calActionAttend()">
-          <span class="calActionIcon">👥</span>
-          <span>参加者を確認・管理</span>
-          <span class="calActionChev">›</span>
-        </button>
-        <div id="calActionEditBtn">
-          <button class="calActionBtn" onclick="calActionEdit()">
-            <span class="calActionIcon">✏️</span>
-            <span>イベントを編集</span>
-            <span class="calActionChev">›</span>
-          </button>
-          <button class="calActionBtn calActionDanger" onclick="calActionDelete()">
-            <span class="calActionIcon">🗑</span>
-            <span>イベントを削除</span>
-            <span class="calActionChev">›</span>
-          </button>
-        </div>
-      </div>
-      <div style="padding:0 16px 16px">
-        <button class="btn btn-outline btn-full" onclick="closeSheet('calActionSheet')">閉じる</button>
-      </div>
+      <!-- イベント詳細 -->
+      <div id="calInfoDetail" style="padding:16px;border-bottom:1px solid var(--border);display:grid;grid-template-columns:1fr 1fr;gap:10px"></div>
+      <!-- 参加者一覧 -->
+      <div style="padding:12px 16px 6px;font-size:12px;font-weight:700;color:var(--text-muted);letter-spacing:.5px">参加者</div>
+      <div id="calInfoAttendance" style="padding:0 16px 20px"></div>
     </div>
   </div>
 </div>
@@ -1026,7 +995,7 @@ async function renderCalendar() {
     dayEvents.forEach(ev => {
       const type = ev['種別'] || 'BE';
       html += `<div class="calEvent calEvent-${type}"
-        onclick="openCalAction('${ev['イベントID']}')"
+        onclick="openCalInfo('${ev['イベントID']}')"
       >${type} ${ev['講師']||''}</div>`;
     });
     html += '</div>';
@@ -1046,40 +1015,72 @@ function changeMonth(d) {
 }
 function goToToday() { state.currentMonth = new Date(); renderCalendar(); }
 
-// カレンダーイベントタップ → アクションメニュー表示
-function openCalAction(eventId) {
+// カレンダーイベントタップ → 情報確認シート（閲覧のみ）
+async function openCalInfo(eventId) {
   const ev = state.events.find(e => e['イベントID'] === eventId);
   if (!ev) return;
-  state._calActionEventId = eventId;
 
   const type  = ev['種別'] || '';
   const fee   = ev['受講料'] ? ev['受講料']+'円' : '無料';
-  const venue = ev['オンライン']==='是' ? 'オンライン' : (ev['会場'] || '');
-  const typeLabel = { BE:'ビジネスエクスプラネーション', BT:'ビジネストレーニング', BS:'ビジネスセミナー', PBS:'プライムビジネスセミナー' }[type] || type;
+  const venue = ev['オンライン']==='是' ? '🖥 オンライン' : (ev['会場'] ? '📍 '+ev['会場'] : '—');
+  const typeNames = { BE:'ビジネスエクスプラネーション', BT:'ビジネストレーニング', BS:'ビジネスセミナー', PBS:'プライムビジネスセミナー' };
 
-  document.getElementById('calActionTitle').innerHTML =
-    `<span class="tag tag-${type}" style="margin-right:6px">${type}</span>${ev['日付']||''} ${ev['開始時刻']||''}〜${ev['終了時刻']||''}`;
-  document.getElementById('calActionSub').textContent =
-    [ev['講師'], venue, fee].filter(Boolean).join('　');
+  document.getElementById('calInfoTitle').innerHTML =
+    `<span class="tag tag-${type}" style="margin-right:6px">${type}</span>${ev['日付']||''}`;
 
-  // 管理者以上のみ編集・削除を表示
-  document.getElementById('calActionEditBtn').style.display =
-    state.member.permission >= 2 ? '' : 'none';
+  // イベント詳細グリッド
+  const items = [
+    ['🕐 時間',   `${ev['開始時刻']||'—'}〜${ev['終了時刻']||'—'}`],
+    ['📋 種別',   typeNames[type] || type],
+    ['👤 講師',   ev['講師'] || '—'],
+    ['🏢 主催',   ev['主催'] || '—'],
+    ['📍 会場',   venue],
+    ['💴 受講料', fee],
+    ['⏰ 締切',   ev['申込締切'] ? String(ev['申込締切']).substring(0,16) : '—'],
+    ['👥 定員',   ev['定員'] ? ev['定員']+'名' : '—'],
+  ];
+  if (ev['ZoomID']) items.push(['🖥 Zoom ID', ev['ZoomID']], ['🔑 パスコード', ev['パスコード']||'—']);
+  if (ev['備考'])   items.push(['📝 備考', ev['備考']]);
 
-  openSheet('calActionSheet');
-}
+  document.getElementById('calInfoDetail').innerHTML = items.map(([label, val]) => `
+    <div>
+      <div style="font-size:11px;color:var(--text-muted);font-weight:600;margin-bottom:2px">${label}</div>
+      <div style="font-size:14px;font-weight:500">${val}</div>
+    </div>`).join('');
 
-function calActionAttend() {
-  closeSheet('calActionSheet');
-  openAttSheet(state._calActionEventId);
-}
-function calActionEdit() {
-  closeSheet('calActionSheet');
-  openEventSheet(state._calActionEventId);
-}
-function calActionDelete() {
-  closeSheet('calActionSheet');
-  confirmDeleteEvent(state._calActionEventId);
+  // 参加者：ローディング表示してから非同期取得
+  const attEl = document.getElementById('calInfoAttendance');
+  attEl.innerHTML = '<div style="color:var(--text-muted);font-size:13px">読み込み中…</div>';
+
+  openSheet('calInfoSheet');
+
+  const res = await apiGet({ action: 'getAttendance', eventId });
+  const list = res.success ? res.data : [];
+  const attend  = list.filter(a => a['参加状態'] === '参加');
+  const absent  = list.filter(a => a['参加状態'] === '不参加');
+
+  if (!list.length) {
+    attEl.innerHTML = '<div style="color:var(--text-muted);font-size:13px">参加者がいません</div>';
+    return;
+  }
+
+  const chip = (p, cls) => {
+    const isGuest = String(p['メンバーID']).startsWith('GUEST_');
+    return `<span class="attChip attChip-${isGuest?'guest':cls}">
+      <span class="attChipDot attChipDot-${isGuest?'guest':cls}"></span>${p['氏名']}
+    </span>`;
+  };
+
+  let html = '';
+  if (attend.length) {
+    html += `<div style="font-size:11px;font-weight:700;color:var(--success);margin-bottom:6px">参加 ${attend.length}名</div>`;
+    html += `<div style="display:flex;flex-wrap:wrap;gap:6px;margin-bottom:14px">${attend.map(p=>chip(p,'attend')).join('')}</div>`;
+  }
+  if (absent.length) {
+    html += `<div style="font-size:11px;font-weight:700;color:var(--danger);margin-bottom:6px">不参加 ${absent.length}名</div>`;
+    html += `<div style="display:flex;flex-wrap:wrap;gap:6px">${absent.map(p=>chip(p,'absent')).join('')}</div>`;
+  }
+  attEl.innerHTML = html;
 }
 
 // ============================================================
